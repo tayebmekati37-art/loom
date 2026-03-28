@@ -1,0 +1,11 @@
+program = { statement* }
+
+statement = { add_stmt | move_stmt }
+
+add_stmt   = { "ADD" ~ number ~ "TO" ~ identifier }
+move_stmt  = { "MOVE" ~ (number | identifier) ~ "TO" ~ identifier }
+
+number     = { ASCII_DIGIT+ }
+identifier = { ASCII_ALPHA+ }
+
+WHITESPACE = { " " | "\t" | "\r" | "\n" }
