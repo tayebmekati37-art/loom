@@ -8,18 +8,25 @@ pub struct SimpleParser;
 
 pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     let input = input.trim();
-    println!("Parsing input: {:?}", input);
-    let mut pairs = SimpleParser::parse(Rule::program, input)?;
-    let program = pairs.next().ok_or_else(|| anyhow::anyhow!("No program found"))?;
-    let inner_pairs: Vec<_> = program.into_inner().collect(); // collect first to inspect
-    println!("Number of inner pairs: {}", inner_pairs.len());
-    for (i, pair) in inner_pairs.iter().enumerate() {
-        println!("Inner pair {}: rule {:?}, text: {:?}", i, pair.as_rule(), pair.as_str());
-    }
-    // Now process
     let mut statements = Vec::new();
-    for pair in inner_pairs {
-        // ... rest as before
+    for line in input.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut pairs = SimpleParser::parse(Rule::statement, line)?;
+        let stmt_pair = pairs.next().unwrap();
+        match stmt_pair.as_rule() {
+            Rule::add_stmt => {
+                let (value, target) = parse_add_stmt(stmt_pair)?;
+                statements.push(Statement::Add { target, value });
+            }
+            Rule::move_stmt => {
+                let (source, target) = parse_move_stmt(stmt_pair)?;
+                statements.push(Statement::Move { source, target });
+            }
+            _ => {}
+        }
     }
     Ok(statements)
 }
