@@ -1,5 +1,3 @@
-program = { statement* }
-
 statement = { add_stmt | move_stmt }
 
 add_stmt   = { "ADD" ~ number ~ "TO" ~ identifier }

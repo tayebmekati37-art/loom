@@ -1,0 +1,9 @@
+MOVE 5 TO x
+ADD 10 TO x
+IF x > 10 THEN
+    MOVE 1 TO y
+ELSE
+    MOVE 0 TO y
+WHILE y > 0 DO
+    ADD -1 TO y
+PERFORM my_sub

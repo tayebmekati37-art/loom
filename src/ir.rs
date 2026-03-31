@@ -4,12 +4,29 @@ use serde::{Serialize, Deserialize};
 pub enum Statement {
     Add { target: String, value: i64 },
     Move { source: Source, target: String },
+    If {
+        condition: Condition,
+        then_branch: Vec<Statement>,
+        else_branch: Option<Vec<Statement>>,
+    },
+    Perform { name: String },
+    While {
+        condition: Condition,
+        body: Vec<Statement>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Source {
     Literal(i64),
     Variable(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Condition {
+    pub left: String,
+    pub operator: String, // ">"
+    pub right: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
