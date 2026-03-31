@@ -301,6 +301,7 @@ dependencies = [
  "pest_derive",
  "rand",
  "serde",
+ "serde_json",
  "tempfile",
 ]
 

@@ -1,13 +1,18 @@
 mod parser;
+mod parser_cobol;
 mod ir;
 mod translate_python;
 mod translate_javascript;
+mod translate_csharp;
+mod translate_go;
+mod translate_rust;
 mod interpreter;
 mod migration;
 
 use clap::{Parser as ClapParser, Subcommand};
 use std::collections::HashMap;
 use std::io::Write;
+use serde_json::{json, Value};
 
 #[derive(ClapParser)]
 #[command(name = "loom")]
@@ -23,6 +28,8 @@ enum Commands {
     Translate {
         #[arg(short = 'f', long)]
         input: String,
+        #[arg(short = 'l', long, default_value = "simple")]
+        lang: String,   // "simple" or "cobol"
         #[arg(short = 't', long, default_value = "python")]
         target: String,
     },
@@ -30,9 +37,17 @@ enum Commands {
     Validate {
         #[arg(short = 'f', long)]
         input: String,
+        #[arg(short = 'l', long, default_value = "simple")]
+        lang: String,
         /// Input values as key=value pairs, e.g., x=5 y=10
         #[arg(short = 'v', long, value_parser = parse_key_val)]
         inputs: Vec<(String, i64)>,
+        /// Record test cases to a file (instead of random generation)
+        #[arg(short = 'r', long)]
+        record: bool,
+        /// Test case file to read/write (default: input file with .tests.json)
+        #[arg(short = 'c', long)]
+        test_file: Option<String>,
     },
     /// Generate wrapper for incremental migration (strangler fig)
     Migrate {
@@ -58,38 +73,73 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Translate { input, target } => {
+        Commands::Translate { input, lang, target } => {
             let content = std::fs::read_to_string(&input)?;
-            let statements = parser::parse_program(&content)?;
+            let statements = match lang.as_str() {
+                "simple" => parser::parse_program(&content)?,
+                "cobol" => parser_cobol::parse_program(&content)?,
+                _ => anyhow::bail!("Unsupported legacy language: {}", lang),
+            };
             let func = ir::Function {
                 name: "translated_func".to_string(),
                 body: statements,
             };
             match target.as_str() {
-                "python" => {
-                    let code = translate_python::translate(&func);
-                    println!("{}", code);
-                }
-                "javascript" => {
-                    let code = translate_javascript::translate(&func);
-                    println!("{}", code);
-                }
+                "python" => println!("{}", translate_python::translate(&func)),
+                "javascript" => println!("{}", translate_javascript::translate(&func)),
+                "csharp" => println!("{}", translate_csharp::translate(&func)),
+                "go" => println!("{}", translate_go::translate(&func)),
+                "rust" => println!("{}", translate_rust::translate(&func)),
                 _ => anyhow::bail!("Unsupported target: {}", target),
             }
         }
-        Commands::Validate { input, inputs } => {
+        Commands::Validate { input, lang, inputs, record, test_file } => {
             let content = std::fs::read_to_string(&input)?;
-            let statements = parser::parse_program(&content)?;
+            let statements = match lang.as_str() {
+                "simple" => parser::parse_program(&content)?,
+                "cobol" => parser_cobol::parse_program(&content)?,
+                _ => anyhow::bail!("Unsupported legacy language: {}", lang),
+            };
             let func = ir::Function {
                 name: "translated_func".to_string(),
                 body: statements,
             };
 
-            // Generate test cases (if no explicit inputs provided)
-            let test_cases = if inputs.is_empty() {
-                generate_test_cases(&func)?
-            } else {
+            let test_path = test_file.unwrap_or_else(|| format!("{}.tests.json", input));
+            let test_cases = if record {
+                // Generate random test cases and save them
+                let cases = generate_test_cases(&func)?;
+                let json_cases: Vec<Value> = cases.iter().map(|map| {
+                    let mut obj = serde_json::Map::new();
+                    for (k, v) in map {
+                        obj.insert(k.clone(), json!(v));
+                    }
+                    json!(obj)
+                }).collect();
+                std::fs::write(&test_path, serde_json::to_string_pretty(&json_cases)?)?;
+                println!("Recorded {} test cases to {}", cases.len(), test_path);
+                cases
+            } else if !inputs.is_empty() {
                 vec![inputs.into_iter().collect()]
+            } else {
+                // Load from file if exists, else generate random
+                if std::path::Path::new(&test_path).exists() {
+                    let data = std::fs::read_to_string(&test_path)?;
+                    let json_cases: Vec<serde_json::Map<String, serde_json::Value>> = serde_json::from_str(&data)?;
+                    let mut cases = Vec::new();
+                    for map in json_cases {
+                        let mut hm = HashMap::new();
+                        for (k, v) in map {
+                            if let Some(num) = v.as_i64() {
+                                hm.insert(k, num);
+                            }
+                        }
+                        cases.push(hm);
+                    }
+                    cases
+                } else {
+                    generate_test_cases(&func)?
+                }
             };
 
             let mut passed = true;
@@ -137,9 +187,7 @@ fn main() -> anyhow::Result<()> {
                 fig.add_modern(modern_func.name.clone(), modern_func);
             }
 
-            // Example: route the legacy function to modern
             fig.set_routing("legacy_func", migration::Routing::Modern);
-
             let wrapper = fig.generate_wrapper_code(&target);
             println!("{}", wrapper);
         }
@@ -147,7 +195,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-// --- Helper functions for validation ---
+// --- Helper functions for validation (unchanged but included for completeness) ---
 
 fn run_python(code: &str, inputs: &HashMap<String, i64>) -> anyhow::Result<HashMap<String, i64>> {
     use std::process::Command;
@@ -201,8 +249,6 @@ fn parse_python_dict(s: &str) -> anyhow::Result<HashMap<String, i64>> {
     }
     Ok(map)
 }
-
-// --- Test case generation ---
 
 use rand::Rng;
 
