@@ -23,7 +23,7 @@ impl Interpreter {
             self.vars.insert(name, value);
         }
         if let Some(func) = self.functions.get(func_name) {
-            let body = func.body.clone(); // Clone to avoid borrow conflict
+            let body = func.body.clone();
             self.execute_block(&body);
         }
         self.vars.clone()
@@ -57,7 +57,7 @@ impl Interpreter {
             }
             Statement::Perform { name } => {
                 if let Some(func) = self.functions.get(name) {
-                    let body = func.body.clone(); // Clone to avoid borrow conflict
+                    let body = func.body.clone();
                     self.execute_block(&body);
                 } else {
                     eprintln!("Undefined function: {}", name);

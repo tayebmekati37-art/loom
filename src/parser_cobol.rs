@@ -16,25 +16,26 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
         }
         let mut pairs = CobolParser::parse(Rule::statement, line)?;
         let stmt_pair = pairs.next().unwrap();
-        match stmt_pair.as_rule() {
+        let inner = stmt_pair.into_inner().next().unwrap();
+        match inner.as_rule() {
             Rule::add_stmt => {
-                let (value, target) = parse_add_stmt(stmt_pair)?;
+                let (value, target) = parse_add_stmt(inner)?;
                 statements.push(Statement::Add { target, value });
             }
             Rule::move_stmt => {
-                let (source, target) = parse_move_stmt(stmt_pair)?;
+                let (source, target) = parse_move_stmt(inner)?;
                 statements.push(Statement::Move { source, target });
             }
             Rule::if_stmt => {
-                let (cond, then_branch, else_branch) = parse_if_stmt(stmt_pair)?;
+                let (cond, then_branch, else_branch) = parse_if_stmt(inner)?;
                 statements.push(Statement::If { condition: cond, then_branch, else_branch });
             }
             Rule::perform_stmt => {
-                let name = parse_perform_stmt(stmt_pair)?;
+                let name = parse_perform_stmt(inner)?;
                 statements.push(Statement::Perform { name });
             }
             Rule::while_stmt => {
-                let (cond, body) = parse_while_stmt(stmt_pair)?;
+                let (cond, body) = parse_while_stmt(inner)?;
                 statements.push(Statement::While { condition: cond, body });
             }
             _ => {}
@@ -48,7 +49,10 @@ fn parse_add_stmt(pair: pest::iterators::Pair<Rule>) -> Result<(i64, String), an
     let mut var = None;
     for inner in pair.into_inner() {
         match inner.as_rule() {
-            Rule::number => number = Some(inner.as_str().parse::<i64>()?),
+            Rule::number => {
+                let s = inner.as_str().trim();
+                number = Some(s.parse::<i64>()?);
+            }
             Rule::identifier => var = Some(inner.as_str().to_string()),
             _ => {}
         }
@@ -65,7 +69,10 @@ fn parse_move_stmt(pair: pest::iterators::Pair<Rule>) -> Result<(Source, String)
     let mut target = None;
     for inner in pair.into_inner() {
         match inner.as_rule() {
-            Rule::number => source = Some(Source::Literal(inner.as_str().parse::<i64>()?)),
+            Rule::number => {
+                let s = inner.as_str().trim();
+                source = Some(Source::Literal(s.parse::<i64>()?));
+            }
             Rule::identifier => {
                 if source.is_none() {
                     source = Some(Source::Variable(inner.as_str().to_string()));
@@ -116,26 +123,26 @@ fn parse_condition(pair: pest::iterators::Pair<Rule>) -> Result<Condition, anyho
 
 fn parse_statement_block(pair: pest::iterators::Pair<Rule>) -> Result<Vec<Statement>, anyhow::Error> {
     let mut statements = Vec::new();
-    for stmt_pair in pair.into_inner() {
-        match stmt_pair.as_rule() {
+    for inner_pair in pair.into_inner() {
+        match inner_pair.as_rule() {
             Rule::add_stmt => {
-                let (value, target) = parse_add_stmt(stmt_pair)?;
+                let (value, target) = parse_add_stmt(inner_pair)?;
                 statements.push(Statement::Add { target, value });
             }
             Rule::move_stmt => {
-                let (source, target) = parse_move_stmt(stmt_pair)?;
+                let (source, target) = parse_move_stmt(inner_pair)?;
                 statements.push(Statement::Move { source, target });
             }
             Rule::if_stmt => {
-                let (cond, then_branch, else_branch) = parse_if_stmt(stmt_pair)?;
+                let (cond, then_branch, else_branch) = parse_if_stmt(inner_pair)?;
                 statements.push(Statement::If { condition: cond, then_branch, else_branch });
             }
             Rule::perform_stmt => {
-                let name = parse_perform_stmt(stmt_pair)?;
+                let name = parse_perform_stmt(inner_pair)?;
                 statements.push(Statement::Perform { name });
             }
             Rule::while_stmt => {
-                let (cond, body) = parse_while_stmt(stmt_pair)?;
+                let (cond, body) = parse_while_stmt(inner_pair)?;
                 statements.push(Statement::While { condition: cond, body });
             }
             _ => {}
