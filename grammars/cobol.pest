@@ -1,6 +1,4 @@
 // grammars/cobol.pest
-program = { statement* }
-
 statement = { add_stmt | move_stmt | if_stmt | perform_stmt | while_stmt }
 
 add_stmt   = { "ADD" ~ number ~ "TO" ~ identifier }

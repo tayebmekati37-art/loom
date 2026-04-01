@@ -12,7 +12,6 @@ mod migration;
 use clap::{Parser as ClapParser, Subcommand};
 use std::collections::HashMap;
 use std::io::Write;
-use serde_json::{json, Value};
 
 #[derive(ClapParser)]
 #[command(name = "loom")]
@@ -109,12 +108,12 @@ fn main() -> anyhow::Result<()> {
             let test_cases = if record {
                 // Generate random test cases and save them
                 let cases = generate_test_cases(&func)?;
-                let json_cases: Vec<Value> = cases.iter().map(|map| {
+                let json_cases: Vec<serde_json::Value> = cases.iter().map(|map| {
                     let mut obj = serde_json::Map::new();
                     for (k, v) in map {
-                        obj.insert(k.clone(), json!(v));
+                        obj.insert(k.clone(), serde_json::json!(v));
                     }
-                    json!(obj)
+                    serde_json::Value::Object(obj)
                 }).collect();
                 std::fs::write(&test_path, serde_json::to_string_pretty(&json_cases)?)?;
                 println!("Recorded {} test cases to {}", cases.len(), test_path);
@@ -195,7 +194,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-// --- Helper functions for validation (unchanged but included for completeness) ---
+// --- Helper functions for validation (unchanged) ---
 
 fn run_python(code: &str, inputs: &HashMap<String, i64>) -> anyhow::Result<HashMap<String, i64>> {
     use std::process::Command;
