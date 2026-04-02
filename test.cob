@@ -1,2 +1,1 @@
-MOVE 5 TO x
-ADD 10 TO x
+﻿move 5 to x

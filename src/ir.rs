@@ -14,6 +14,7 @@ pub enum Statement {
         condition: Condition,
         body: Vec<Statement>,
     },
+    Display { value: Literal },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,9 +24,15 @@ pub enum Source {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Literal {
+    Int(i64),
+    String(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Condition {
     pub left: String,
-    pub operator: String, // ">"
+    pub operator: String,
     pub right: i64,
 }
 

@@ -1,4 +1,4 @@
-use crate::ir::{Function, Statement, Source, Condition};
+use crate::ir::{Function, Statement, Source, Literal, Condition};
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
@@ -22,13 +22,13 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         }
         Statement::Move { source, target } => {
             let src_expr = match source {
-                Source::Literal(v) => v.to_string(),
+                Source::Literal(i) => i.to_string(),
                 Source::Variable(v) => v.clone(),
             };
             writeln!(out, "{}{} = {};", indent, target, src_expr).unwrap();
         }
         Statement::If { condition, then_branch, else_branch } => {
-            let cond_str = format_condition(condition);
+            let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
             writeln!(out, "{}if {} {{", indent, cond_str).unwrap();
             for stmt in then_branch {
                 translate_statement(stmt, out, &format!("{}    ", indent));
@@ -45,16 +45,19 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             writeln!(out, "{}{}();", indent, name).unwrap();
         }
         Statement::While { condition, body } => {
-            let cond_str = format_condition(condition);
+            let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
             writeln!(out, "{}while {} {{", indent, cond_str).unwrap();
             for stmt in body {
                 translate_statement(stmt, out, &format!("{}    ", indent));
             }
             writeln!(out, "{}}}", indent).unwrap();
         }
+        Statement::Display { value } => {
+            let expr = match value {
+                Literal::Int(i) => i.to_string(),
+                Literal::String(s) => s.clone(),
+            };
+            writeln!(out, "{}println!(\"{}\");", indent, expr).unwrap();
+        }
     }
-}
-
-fn format_condition(cond: &Condition) -> String {
-    format!("{} {} {}", cond.left, cond.operator, cond.right)
 }

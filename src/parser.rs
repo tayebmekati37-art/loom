@@ -7,7 +7,7 @@ use crate::ir::{Statement, Source};
 pub struct SimpleParser;
 
 pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
-    let input = input.trim();
+    let input = input.trim(); // no to_lowercase()
     let mut statements = Vec::new();
     for line in input.lines() {
         let line = line.trim();
