@@ -1,4 +1,4 @@
-use crate::ir::{Function, Statement, Source, Condition};
+use crate::ir::{Function, Statement, Source, Literal, Condition};
 use std::collections::HashMap;
 
 pub struct Interpreter {
@@ -68,6 +68,12 @@ impl Interpreter {
                     self.execute_block(body);
                 }
             }
+            Statement::Display { value } => {
+                match value {
+                    Literal::Int(i) => println!("{}", i),
+                    Literal::String(s) => println!("{}", s),
+                }
+            }
         }
     }
 
@@ -75,6 +81,8 @@ impl Interpreter {
         let left_val = *self.vars.get(&cond.left).unwrap_or(&0);
         match cond.operator.as_str() {
             ">" => left_val > cond.right,
+            "<" => left_val < cond.right,
+            "=" => left_val == cond.right,
             _ => false,
         }
     }

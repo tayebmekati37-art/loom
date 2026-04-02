@@ -1,13 +1,16 @@
-// grammars/cobol.pest
-statement = { add_stmt | move_stmt | if_stmt | perform_stmt | while_stmt }
+program = { statement* }
 
-add_stmt   = { "ADD" ~ number ~ "TO" ~ identifier }
-move_stmt  = { "MOVE" ~ (number | identifier) ~ "TO" ~ identifier }
-if_stmt    = { "IF" ~ condition ~ "THEN" ~ statement* ~ ("ELSE" ~ statement*)? }
-perform_stmt = { "PERFORM" ~ identifier }
-while_stmt = { "WHILE" ~ condition ~ "DO" ~ statement* }
+statement = { add_stmt | move_stmt | if_stmt | perform_stmt | while_stmt | display_stmt }
 
-condition  = { identifier ~ ">" ~ number }
+add_stmt   = { "add" ~ number ~ "to" ~ identifier }
+move_stmt  = { "move" ~ (number | identifier) ~ "to" ~ identifier }
+if_stmt    = { "if" ~ condition ~ "then" ~ statement* ~ ("else" ~ statement*)? ~ "end-if" }
+perform_stmt = { "perform" ~ identifier }
+while_stmt = { "while" ~ condition ~ "do" ~ statement* ~ "end-while" }
+display_stmt = { "display" ~ (number | string_literal) }
+
+string_literal = { "'" ~ (!"'" ~ ANY)* ~ "'" }
+condition  = { identifier ~ (">" | "<" | "=") ~ number }
 
 number     = { ASCII_DIGIT+ }
 identifier = { ASCII_ALPHA+ }

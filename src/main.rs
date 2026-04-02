@@ -6,6 +6,9 @@ mod translate_javascript;
 mod translate_csharp;
 mod translate_go;
 mod translate_rust;
+mod translate_typescript;
+mod translate_kotlin;
+mod translate_swift;
 mod interpreter;
 mod migration;
 
@@ -23,32 +26,26 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Translate a legacy file to a target language
     Translate {
         #[arg(short = 'f', long)]
         input: String,
         #[arg(short = 'l', long, default_value = "simple")]
-        lang: String,   // "simple" or "cobol"
+        lang: String,
         #[arg(short = 't', long, default_value = "python")]
         target: String,
     },
-    /// Validate translation by comparing legacy interpreter output with Python output
     Validate {
         #[arg(short = 'f', long)]
         input: String,
         #[arg(short = 'l', long, default_value = "simple")]
         lang: String,
-        /// Input values as key=value pairs, e.g., x=5 y=10
         #[arg(short = 'v', long, value_parser = parse_key_val)]
         inputs: Vec<(String, i64)>,
-        /// Record test cases to a file (instead of random generation)
         #[arg(short = 'r', long)]
         record: bool,
-        /// Test case file to read/write (default: input file with .tests.json)
         #[arg(short = 'c', long)]
         test_file: Option<String>,
     },
-    /// Generate wrapper for incremental migration (strangler fig)
     Migrate {
         #[arg(short = 'l', long)]
         legacy_file: String,
@@ -89,6 +86,9 @@ fn main() -> anyhow::Result<()> {
                 "csharp" => println!("{}", translate_csharp::translate(&func)),
                 "go" => println!("{}", translate_go::translate(&func)),
                 "rust" => println!("{}", translate_rust::translate(&func)),
+                "typescript" => println!("{}", translate_typescript::translate(&func)),
+                "kotlin" => println!("{}", translate_kotlin::translate(&func)),
+                "swift" => println!("{}", translate_swift::translate(&func)),
                 _ => anyhow::bail!("Unsupported target: {}", target),
             }
         }
@@ -106,7 +106,6 @@ fn main() -> anyhow::Result<()> {
 
             let test_path = test_file.unwrap_or_else(|| format!("{}.tests.json", input));
             let test_cases = if record {
-                // Generate random test cases and save them
                 let cases = generate_test_cases(&func)?;
                 let json_cases: Vec<serde_json::Value> = cases.iter().map(|map| {
                     let mut obj = serde_json::Map::new();
@@ -121,7 +120,6 @@ fn main() -> anyhow::Result<()> {
             } else if !inputs.is_empty() {
                 vec![inputs.into_iter().collect()]
             } else {
-                // Load from file if exists, else generate random
                 if std::path::Path::new(&test_path).exists() {
                     let data = std::fs::read_to_string(&test_path)?;
                     let json_cases: Vec<serde_json::Map<String, serde_json::Value>> = serde_json::from_str(&data)?;
@@ -143,15 +141,14 @@ fn main() -> anyhow::Result<()> {
 
             let mut passed = true;
             for (i, inputs_map) in test_cases.iter().enumerate() {
-                // Run legacy interpreter
                 let mut interpreter = interpreter::Interpreter::new();
                 interpreter.add_function(func.clone());
                 let legacy_output = interpreter.run(&func.name, inputs_map.clone());
 
-                // Generate Python code and run it
                 let python_code = translate_python::translate(&func);
                 let python_output = run_python(&python_code, inputs_map)?;
 
+                // Convert legacy_output (HashMap<String, i64>) to match python_output (HashMap<String, i64>)
                 if legacy_output == python_output {
                     println!("Test case {} PASSED", i);
                 } else {
@@ -194,7 +191,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-// --- Helper functions for validation (unchanged) ---
+// --- Helper functions (unchanged) ---
 
 fn run_python(code: &str, inputs: &HashMap<String, i64>) -> anyhow::Result<HashMap<String, i64>> {
     use std::process::Command;
@@ -294,6 +291,7 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
                 set.insert(condition.left.clone());
                 collect_variables(body, set);
             }
+            ir::Statement::Display { .. } => {}
         }
     }
 }

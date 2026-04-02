@@ -1,7 +1,7 @@
 statement = { add_stmt | move_stmt }
 
-add_stmt   = { "ADD" ~ number ~ "TO" ~ identifier }
-move_stmt  = { "MOVE" ~ (number | identifier) ~ "TO" ~ identifier }
+add_stmt   = { "add" ~ number ~ "to" ~ identifier }
+move_stmt  = { "move" ~ (number | identifier) ~ "to" ~ identifier }
 
 number     = { ASCII_DIGIT+ }
 identifier = { ASCII_ALPHA+ }
