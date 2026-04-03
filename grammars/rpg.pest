@@ -1,0 +1,18 @@
+﻿program = { statement* }
+
+statement = { add_stmt | move_stmt | if_stmt | perform_stmt | while_stmt | display_stmt }
+
+add_stmt   = { "add" ~ number ~ "to" ~ identifier }
+move_stmt  = { "move" ~ (number | identifier) ~ "to" ~ identifier }
+if_stmt    = { "if" ~ condition ~ "then" ~ statement* ~ ("else" ~ statement*)? ~ "endif" }
+perform_stmt = { "perform" ~ identifier }
+while_stmt = { "while" ~ condition ~ "do" ~ statement* ~ "endwhile" }
+display_stmt = { "display" ~ (number | string_literal) }
+
+string_literal = { "'" ~ (!"'" ~ ANY)* ~ "'" }
+condition  = { identifier ~ (">" | "<" | "=") ~ number }
+
+number     = { ASCII_DIGIT+ }
+identifier = { ASCII_ALPHA+ }
+
+WHITESPACE = { " " | "\t" | "\r" | "\n" }
