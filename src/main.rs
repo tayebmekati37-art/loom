@@ -1,4 +1,4 @@
-mod parser;
+﻿mod parser;
 mod parser_cobol;
 mod ir;
 mod translate_python;
@@ -9,6 +9,9 @@ mod translate_rust;
 mod translate_typescript;
 mod translate_kotlin;
 mod translate_swift;
+mod translate_zig;
+mod translate_nim;
+mod translate_dart;
 mod interpreter;
 mod migration;
 
@@ -70,10 +73,13 @@ fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Translate { input, lang, target } => {
-            let content = std::fs::read_to_string(&input)?;
+            // Read file as bytes to handle any encoding issues
+            let bytes = std::fs::read(&input)?;
+            let content = String::from_utf8_lossy(&bytes).to_string();
+            let content = content.trim_start_matches('\u{feff}').to_string();
             let statements = match lang.as_str() {
                 "simple" => parser::parse_program(&content)?,
-                "cobol" => parser_cobol::parse_program(&content)?,
+                "cobol" | "rpg" | "pli" => parser_cobol::parse_program(&content)?,
                 _ => anyhow::bail!("Unsupported legacy language: {}", lang),
             };
             let func = ir::Function {
@@ -89,14 +95,19 @@ fn main() -> anyhow::Result<()> {
                 "typescript" => println!("{}", translate_typescript::translate(&func)),
                 "kotlin" => println!("{}", translate_kotlin::translate(&func)),
                 "swift" => println!("{}", translate_swift::translate(&func)),
+                "zig" => println!("{}", translate_zig::translate(&func)),
+                "nim" => println!("{}", translate_nim::translate(&func)),
+                "dart" => println!("{}", translate_dart::translate(&func)),
                 _ => anyhow::bail!("Unsupported target: {}", target),
             }
         }
         Commands::Validate { input, lang, inputs, record, test_file } => {
-            let content = std::fs::read_to_string(&input)?;
+            let bytes = std::fs::read(&input)?;
+            let content = String::from_utf8_lossy(&bytes).to_string();
+            let content = content.trim_start_matches('\u{feff}').to_string();
             let statements = match lang.as_str() {
                 "simple" => parser::parse_program(&content)?,
-                "cobol" => parser_cobol::parse_program(&content)?,
+                "cobol" | "rpg" | "pli" => parser_cobol::parse_program(&content)?,
                 _ => anyhow::bail!("Unsupported legacy language: {}", lang),
             };
             let func = ir::Function {
@@ -148,7 +159,6 @@ fn main() -> anyhow::Result<()> {
                 let python_code = translate_python::translate(&func);
                 let python_output = run_python(&python_code, inputs_map)?;
 
-                // Convert legacy_output (HashMap<String, i64>) to match python_output (HashMap<String, i64>)
                 if legacy_output == python_output {
                     println!("Test case {} PASSED", i);
                 } else {
@@ -166,19 +176,23 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Commands::Migrate { legacy_file, modern_file, target } => {
-            let legacy_code = std::fs::read_to_string(&legacy_file)?;
+            let bytes = std::fs::read(&legacy_file)?;
+            let content = String::from_utf8_lossy(&bytes).to_string();
+            let content = content.trim_start_matches('\u{feff}').to_string();
             let legacy_func = ir::Function {
                 name: "legacy_func".to_string(),
-                body: parser::parse_program(&legacy_code)?,
+                body: parser::parse_program(&content)?,
             };
             let mut fig = migration::StranglerFig::new();
             fig.add_legacy(legacy_func.name.clone(), legacy_func.clone());
 
             if let Some(modern_path) = modern_file {
-                let modern_code = std::fs::read_to_string(modern_path)?;
+                let bytes = std::fs::read(&modern_path)?;
+                let content = String::from_utf8_lossy(&bytes).to_string();
+                let content = content.trim_start_matches('\u{feff}').to_string();
                 let modern_func = ir::Function {
                     name: "modern_func".to_string(),
-                    body: parser::parse_program(&modern_code)?,
+                    body: parser::parse_program(&content)?,
                 };
                 fig.add_modern(modern_func.name.clone(), modern_func);
             }
@@ -191,7 +205,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-// --- Helper functions (unchanged) ---
+// --- Helper functions for validation (unchanged) ---
 
 fn run_python(code: &str, inputs: &HashMap<String, i64>) -> anyhow::Result<HashMap<String, i64>> {
     use std::process::Command;
