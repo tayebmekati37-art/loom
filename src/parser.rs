@@ -7,7 +7,7 @@ use crate::ir::{Statement, Source};
 pub struct SimpleParser;
 
 pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
-    let input = input.trim(); // no to_lowercase()
+    let input = input.trim();
     let mut statements = Vec::new();
     for line in input.lines() {
         let line = line.trim();
@@ -32,21 +32,27 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     Ok(statements)
 }
 
-fn parse_add_stmt(pair: pest::iterators::Pair<Rule>) -> Result<(i64, String), anyhow::Error> {
-    let mut number = None;
-    let mut var = None;
+fn parse_add_stmt(pair: pest::iterators::Pair<Rule>) -> Result<(Source, String), anyhow::Error> {
+    let mut source = None;
+    let mut target = None;
     for inner in pair.into_inner() {
         match inner.as_rule() {
             Rule::number => {
                 let s = inner.as_str().trim();
-                number = Some(s.parse::<i64>()?);
+                source = Some(Source::Literal(s.parse::<i64>()?));
             }
-            Rule::identifier => var = Some(inner.as_str().to_string()),
+            Rule::identifier => {
+                if source.is_none() {
+                    source = Some(Source::Variable(inner.as_str().to_string()));
+                } else {
+                    target = Some(inner.as_str().to_string());
+                }
+            }
             _ => {}
         }
     }
-    if let (Some(num), Some(var_name)) = (number, var) {
-        Ok((num, var_name))
+    if let (Some(src), Some(tgt)) = (source, target) {
+        Ok((src, tgt))
     } else {
         anyhow::bail!("Invalid ADD statement")
     }

@@ -1,4 +1,4 @@
-use crate::ir::{Function, Statement, Source, Literal, Condition};
+﻿use crate::ir::{Function, Statement, Source, Literal, Condition};
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
@@ -13,6 +13,13 @@ pub fn translate(function: &Function) -> String {
     }
     writeln!(out, "}}").unwrap();
     out
+fn source_to_expression(src: &Source) -> String {
+    match src {
+        Source::Literal(i) => i.to_string(),
+        Source::Variable(v) => v.clone(),
+    }
+}
+
 }
 
 fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
@@ -60,4 +67,11 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             writeln!(out, "{}Console.WriteLine({});", indent, expr).unwrap();
         }
     }
+fn source_to_expression(src: &Source) -> String {
+    match src {
+        Source::Literal(i) => i.to_string(),
+        Source::Variable(v) => v.clone(),
+    }
+}
+
 }
