@@ -26,7 +26,7 @@ impl CommandRunner {
 impl LegacyRunner for CommandRunner {
     fn run(&self, code: &str, inputs: HashMap<String, i64>) -> anyhow::Result<HashMap<String, i64>> {
         use tempfile::NamedTempFile;
-        let mut temp_file = NamedTempFile::new()?;
+        let temp_file = NamedTempFile::new()?;
         let path = temp_file.path().with_extension(&self.tempfile_extension);
         std::fs::write(&path, code)?;
         let mut cmd = Command::new(&self.command);
@@ -91,13 +91,13 @@ impl Interpreter {
     fn execute_statement(&mut self, stmt: &crate::ir::Statement) {
         match stmt {
             crate::ir::Statement::Add { target, value } => {
-    let src_val = match value {
-        crate::ir::Source::Literal(i) => i,
-        crate::ir::Source::Variable(v) => *self.vars.get(v).unwrap_or(&0),
-    };
-    let current = *self.vars.get(target).unwrap_or(&0);
-    self.vars.insert(target.clone(), current + src_val);
-}
+                let src_val = match value {
+                    crate::ir::Source::Literal(i) => *i,
+                    crate::ir::Source::Variable(v) => *self.vars.get(v).unwrap_or(&0),
+                };
+                let current = *self.vars.get(target).unwrap_or(&0);
+                self.vars.insert(target.clone(), current + src_val);
+            }
             crate::ir::Statement::Move { source, target } => {
                 let src_value = match source {
                     crate::ir::Source::Literal(i) => *i,

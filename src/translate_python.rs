@@ -12,13 +12,6 @@ pub fn translate(function: &Function) -> String {
         }
     }
     out
-fn source_to_expression(src: &Source) -> String {
-    match src {
-        Source::Literal(i) => i.to_string(),
-        Source::Variable(v) => v.clone(),
-    }
-}
-
 }
 
 fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
@@ -27,12 +20,45 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             let src_expr = source_to_expression(value);
             writeln!(out, "{}{} = {} + {}", indent, target, target, src_expr).unwrap();
         }
+        Statement::Move { source, target } => {
+            let src_expr = source_to_expression(source);
+            writeln!(out, "{}{} = {}", indent, target, src_expr).unwrap();
+        }
+        Statement::If { condition, then_branch, else_branch } => {
+            let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
+            writeln!(out, "{}if {}:", indent, cond_str).unwrap();
+            for stmt in then_branch {
+                translate_statement(stmt, out, &format!("{}    ", indent));
+            }
+            if let Some(else_branch) = else_branch {
+                writeln!(out, "{}else:", indent).unwrap();
+                for stmt in else_branch {
+                    translate_statement(stmt, out, &format!("{}    ", indent));
+                }
+            }
+        }
+        Statement::Perform { name } => {
+            writeln!(out, "{}{}()", indent, name).unwrap();
+        }
+        Statement::While { condition, body } => {
+            let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
+            writeln!(out, "{}while {}:", indent, cond_str).unwrap();
+            for stmt in body {
+                translate_statement(stmt, out, &format!("{}    ", indent));
+            }
+        }
+        Statement::Display { value } => {
+            let expr = match value {
+                Literal::Int(i) => i.to_string(),
+                Literal::String(s) => format!("'{}'", s),
+            };
+            writeln!(out, "{indent}print({expr})").unwrap();
+        }
     }
+}
 fn source_to_expression(src: &Source) -> String {
     match src {
         Source::Literal(i) => i.to_string(),
         Source::Variable(v) => v.clone(),
     }
-}
-
 }
