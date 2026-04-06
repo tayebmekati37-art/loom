@@ -18,13 +18,11 @@ pub fn translate(function: &Function) -> String {
 fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
     match stmt {
         Statement::Add { target, value } => {
-            writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
+            let src_expr = source_to_expression(value);
+            writeln!(out, "{}{} = {} + {};", indent, target, target, src_expr).unwrap();
         }
         Statement::Move { source, target } => {
-            let src_expr = match source {
-                Source::Literal(i) => i.to_string(),
-                Source::Variable(v) => v.clone(),
-            };
+            let src_expr = source_to_expression(source);
             writeln!(out, "{}{} = {};", indent, target, src_expr).unwrap();
         }
         Statement::If { condition, then_branch, else_branch } => {
@@ -55,13 +53,22 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::Display { value } => {
             let expr = match value {
                 Literal::Int(i) => i.to_string(),
-                Literal::String(s) => format!("'{}'", s),
+                Literal::String(s) => s.clone(),
             };
             writeln!(out, "{}console.log({});", indent, expr).unwrap();
         }
         _ => {}
     }
 }
+<<<<<<< HEAD
 
 
 
+=======
+fn source_to_expression(src: &Source) -> String {
+    match src {
+        Source::Literal(i) => i.to_string(),
+        Source::Variable(v) => v.clone(),
+    }
+}
+>>>>>>> 902dbcf1dd9dcf086aff99c41645f8732529de4b
