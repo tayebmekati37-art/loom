@@ -305,7 +305,34 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
                 set.insert(condition.left.clone());
                 collect_variables(body, set);
             }
-            ir::Statement::Display { .. } => {}
+            
+            ir::Statement::Evaluate { subject, also_subject, when_clauses } => {
+                set.insert(subject.clone());
+                if let Some(also) = also_subject {
+                    set.insert(also.clone());
+                }
+                for when in when_clauses {
+                    match &when.condition {
+                        WhenCondition::Variable(v) => { set.insert(v.clone()); }
+                        _ => {}
+                    }
+                    collect_variables(&when.body, set);
+                }
+            }ir::Statement::Evaluate { subject, also_subject, when_clauses } => {
+                set.insert(subject.clone());
+                if let Some(also) = also_subject {
+                    set.insert(also.clone());
+                }
+                for when in when_clauses {
+                    match &when.condition {
+                        ir::WhenCondition::Variable(v) => { set.insert(v.clone()); }
+                        _ => {}
+                    }
+                    collect_variables(&when.body, set);
+                }
+            }
         }
     }
 }
+
+

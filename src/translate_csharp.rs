@@ -57,11 +57,18 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             };
             writeln!(out, "{}Console.WriteLine({});", indent, expr).unwrap();
         }
+        _ => {}
     }
 }
+<<<<<<< HEAD
+
+
+
+=======
 fn source_to_expression(src: &Source) -> String {
     match src {
         Source::Literal(i) => i.to_string(),
         Source::Variable(v) => v.clone(),
     }
 }
+>>>>>>> 902dbcf1dd9dcf086aff99c41645f8732529de4b

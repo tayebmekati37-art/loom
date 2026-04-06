@@ -17,8 +17,12 @@ pub fn translate(function: &Function) -> String {
 fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
     match stmt {
         Statement::Add { target, value } => {
+<<<<<<< HEAD
+            writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
+=======
             let src_expr = source_to_expression(value);
             writeln!(out, "{}{} = {} + {}", indent, target, target, src_expr).unwrap();
+>>>>>>> 902dbcf1dd9dcf086aff99c41645f8732529de4b
         }
         Statement::Move { source, target } => {
             let src_expr = source_to_expression(source);
@@ -55,10 +59,21 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             writeln!(out, "{}echo {}", indent, expr).unwrap();
         }
     }
+            _ => {}
+    
 }
+<<<<<<< HEAD
+
+
+
+
+
+
+=======
 fn source_to_expression(src: &Source) -> String {
     match src {
         Source::Literal(i) => i.to_string(),
         Source::Variable(v) => v.clone(),
     }
 }
+>>>>>>> 902dbcf1dd9dcf086aff99c41645f8732529de4b

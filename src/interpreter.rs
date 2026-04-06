@@ -94,6 +94,10 @@ impl Interpreter {
                 let src_val = match value {
                     crate::ir::Source::Literal(i) => *i,
                     crate::ir::Source::Variable(v) => *self.vars.get(v).unwrap_or(&0),
+<<<<<<< HEAD
+                    crate::ir::Source::LiteralString(_) => 0,
+=======
+>>>>>>> 902dbcf1dd9dcf086aff99c41645f8732529de4b
                 };
                 let current = *self.vars.get(target).unwrap_or(&0);
                 self.vars.insert(target.clone(), current + src_val);
@@ -102,6 +106,7 @@ impl Interpreter {
                 let src_value = match source {
                     crate::ir::Source::Literal(i) => *i,
                     crate::ir::Source::Variable(v) => *self.vars.get(v).unwrap_or(&0),
+                    crate::ir::Source::LiteralString(_) => 0,
                 };
                 self.vars.insert(target.clone(), src_value);
             }
@@ -131,6 +136,9 @@ impl Interpreter {
                     crate::ir::Literal::String(s) => println!("{}", s),
                 }
             }
+            crate::ir::Statement::Evaluate { .. } => {
+                eprintln!("EVALUATE not implemented in interpreter");
+            }
         }
     }
 
@@ -143,4 +151,9 @@ impl Interpreter {
             _ => false,
         }
     }
+<<<<<<< HEAD
 }
+
+=======
+}
+>>>>>>> 902dbcf1dd9dcf086aff99c41645f8732529de4b

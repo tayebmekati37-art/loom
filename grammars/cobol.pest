@@ -1,18 +1,26 @@
-program = { statement* }
+﻿program = { division* }
 
-statement = { add_stmt | move_stmt | if_stmt | perform_stmt | while_stmt | display_stmt }
+division = { "identification division." | "environment division." | "data division." ~ data_items? | "procedure division." ~ paragraphs? }
 
-add_stmt   = { "add" ~ number ~ "to" ~ identifier }
-move_stmt  = { "move" ~ (number | identifier) ~ "to" ~ identifier }
+data_items = { data_item+ }
+data_item  = { number? ~ identifier ~ ("pic" ~ picture)? ~ ("occurs" ~ number ~ "times")? ~ "." }
+picture    = { "x(" ~ number ~ ")" | "9" ~ ("(" ~ number ~ ")")? ~ ("v" ~ number ~ ("(" ~ number ~ ")")?)? }
+
+paragraph = { identifier ~ "." ~ statement* }
+statement = { add_stmt | move_stmt | if_stmt | perform_stmt | while_stmt | display_stmt | evaluate_stmt }
+
+add_stmt   = { "add" ~ (number | identifier) ~ "to" ~ identifier }
+move_stmt  = { "move" ~ (literal | identifier) ~ "to" ~ identifier }
 if_stmt    = { "if" ~ condition ~ "then" ~ statement* ~ ("else" ~ statement*)? ~ "end-if" }
 perform_stmt = { "perform" ~ identifier }
-while_stmt = { "while" ~ condition ~ "do" ~ statement* ~ "end-while" }
-display_stmt = { "display" ~ (number | string_literal) }
+while_stmt = { "perform" ~ "until" ~ condition ~ statement* ~ "end-perform" }
+display_stmt = { "display" ~ literal }
+evaluate_stmt = { "evaluate" ~ identifier ~ ("also" ~ identifier)? ~ (when_clause)+ ~ "end-evaluate" }
+when_clause   = { "when" ~ (literal | identifier) ~ statement* }
 
-string_literal = { "'" ~ (!"'" ~ ANY)* ~ "'" }
-condition  = { identifier ~ (">" | "<" | "=") ~ number }
+literal    = { ("'" ~ (!"'" ~ ANY)* ~ "'") | (number) }
+condition  = { identifier ~ (">" | "<" | "=") ~ (number | identifier) }
 
 number     = { ASCII_DIGIT+ }
-identifier = { ASCII_ALPHA+ }
-
+identifier = { ASCII_ALPHA+ ("-" ASCII_ALPHA+)* }
 WHITESPACE = { " " | "\t" | "\r" | "\n" }
