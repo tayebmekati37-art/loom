@@ -17,7 +17,7 @@ pub fn translate(function: &Function) -> String {
 fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
     match stmt {
         Statement::Add { target, value } => {
-            writeln!(out, "{}{} = {} + {}", indent, target, target, value).unwrap();
+            writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
         }
         Statement::Move { source, target } => {
             let src_expr = match source {
@@ -57,4 +57,12 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             writeln!(out, "{}echo {}", indent, expr).unwrap();
         }
     }
+            _ => {}
+    
 }
+
+
+
+
+
+

@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+﻿use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
@@ -15,6 +15,23 @@ pub enum Statement {
         body: Vec<Statement>,
     },
     Display { value: Literal },
+    Evaluate {
+        subject: String,
+        also_subject: Option<String>,
+        when_clauses: Vec<WhenClause>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WhenClause {
+    pub condition: WhenCondition,
+    pub body: Vec<Statement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WhenCondition {
+    Literal(Literal),
+    Variable(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

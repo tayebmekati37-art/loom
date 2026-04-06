@@ -1,4 +1,4 @@
-use crate::ir::{Function, Statement, Source, Literal, Condition};
+﻿use crate::ir::{Function, Statement, Source, Literal, Condition};
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
@@ -57,7 +57,11 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                 Literal::Int(i) => i.to_string(),
                 Literal::String(s) => s.clone(),
             };
-            writeln!(out, "{}println!(\"{}\");", indent, expr).unwrap();
+            writeln!(out, "{}println!(\"{}\", {});", indent, expr, expr).unwrap();
         }
+        _ => {}
     }
 }
+
+
+
