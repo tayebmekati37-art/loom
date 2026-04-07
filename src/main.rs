@@ -18,6 +18,7 @@ mod migration;
 use clap::{Parser as ClapParser, Subcommand};
 use std::collections::HashMap;
 use std::io::Write;
+use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition};
 
 #[derive(ClapParser)]
 #[command(name = "loom")]
@@ -305,7 +306,7 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
                 set.insert(condition.left.clone());
                 collect_variables(body, set);
             }
-            
+            ir::Statement::Display { .. } => {}
             ir::Statement::Evaluate { subject, also_subject, when_clauses } => {
                 set.insert(subject.clone());
                 if let Some(also) = also_subject {
@@ -334,5 +335,8 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
         }
     }
 }
+
+
+
 
 

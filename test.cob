@@ -1,1 +1,3 @@
-﻿move 5 to x
+MOVE 5 TO X
+ADD 10 TO X
+DISPLAY X

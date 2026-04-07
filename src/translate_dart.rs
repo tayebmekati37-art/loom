@@ -3,7 +3,7 @@ use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
     let mut out = String::new();
-    writeln!(out, "void {}() {{", function.name).unwrap();
+    writeln!(out, "void translated_func() {{").unwrap();
     if function.body.is_empty() {
         writeln!(out, "  // nothing").unwrap();
     } else {
@@ -18,11 +18,13 @@ pub fn translate(function: &Function) -> String {
 fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
     match stmt {
         Statement::Add { target, value } => {
-            let src_expr = source_to_expression(value);
-            writeln!(out, "{}{} = {} + {};", indent, target, target, src_expr).unwrap();
+            writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
         }
         Statement::Move { source, target } => {
-            let src_expr = source_to_expression(source);
+            let src_expr = match source {
+                Source::Literal(i) => i.to_string(),
+                Source::Variable(v) => v.clone(),
+            };
             writeln!(out, "{}{} = {};", indent, target, src_expr).unwrap();
         }
         Statement::If { condition, then_branch, else_branch } => {
@@ -57,22 +59,6 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             };
             writeln!(out, "{}print({});", indent, expr).unwrap();
         }
-    }
-            _ => {}
-    
-}
-<<<<<<< HEAD
-
-
-
-
-
-
-=======
-fn source_to_expression(src: &Source) -> String {
-    match src {
-        Source::Literal(i) => i.to_string(),
-        Source::Variable(v) => v.clone(),
+        Statement::Evaluate { .. } => {}
     }
 }
->>>>>>> 902dbcf1dd9dcf086aff99c41645f8732529de4b
