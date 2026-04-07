@@ -2,7 +2,7 @@
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
-    Add { target: String, value: Source },
+    Add { target: String, value: i64 },
     Move { source: Source, target: String },
     If {
         condition: Condition,
