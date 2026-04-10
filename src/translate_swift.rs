@@ -1,9 +1,17 @@
+<<<<<<< HEAD
 ﻿use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition};
+=======
+﻿use crate::ir::{Function, Statement, Source, Literal, Condition};
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
     let mut out = String::new();
+<<<<<<< HEAD
     writeln!(out, "func {}() {{", function.name).unwrap();
+=======
+    writeln!(out, "func translated_func() {").unwrap();
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
     if function.body.is_empty() {
         writeln!(out, "    // nothing").unwrap();
     } else {
@@ -11,7 +19,11 @@ pub fn translate(function: &Function) -> String {
             translate_statement(stmt, &mut out, "    ");
         }
     }
+<<<<<<< HEAD
     writeln!(out, "}}").unwrap();
+=======
+    writeln!(out, "}").unwrap();
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
     out
 }
 
@@ -25,11 +37,19 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                 Source::Literal(i) => i.to_string(),
                 Source::Variable(v) => v.clone(),
             };
+<<<<<<< HEAD
             writeln!(out, "{}{} = {}", indent, target, src_expr).unwrap();
         }
         Statement::If { condition, then_branch, else_branch } => {
             let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
             writeln!(out, "{}if {} {{", indent, cond_str).unwrap();
+=======
+            writeln!(out, "{}{} = {};", indent, target, src_expr).unwrap();
+        }
+        Statement::If { condition, then_branch, else_branch } => {
+            let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
+            writeln!(out, "{}if ({}) {{", indent, cond_str).unwrap();
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
             for stmt in then_branch {
                 translate_statement(stmt, out, &format!("{}    ", indent));
             }
@@ -42,11 +62,19 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             writeln!(out, "{}}}", indent).unwrap();
         }
         Statement::Perform { name } => {
+<<<<<<< HEAD
             writeln!(out, "{}{}()", indent, name).unwrap();
         }
         Statement::While { condition, body } => {
             let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
             writeln!(out, "{}while {} {{", indent, cond_str).unwrap();
+=======
+            writeln!(out, "{}{}();", indent, name).unwrap();
+        }
+        Statement::While { condition, body } => {
+            let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
+            writeln!(out, "{}while ({}) {{", indent, cond_str).unwrap();
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
             for stmt in body {
                 translate_statement(stmt, out, &format!("{}    ", indent));
             }
@@ -57,6 +85,7 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                 Literal::Int(i) => i.to_string(),
                 Literal::String(s) => s.clone(),
             };
+<<<<<<< HEAD
             writeln!(out, "{}print({})", indent, expr).unwrap();
         }
         Statement::Evaluate { subject, also_subject, when_clauses } => {
@@ -77,9 +106,15 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             if let Some(also) = also_subject {
                 writeln!(out, "{}    # also subject {} not supported", indent, also).unwrap();
             }
+=======
+            writeln!(out, "{}println!(\"{}\", {});", indent, expr, expr).unwrap();
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
         }
         _ => {}
     }
 }
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)

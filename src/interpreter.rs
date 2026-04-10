@@ -127,9 +127,17 @@ impl Interpreter {
                     crate::ir::Literal::String(s) => println!("{}", s),
                 }
             }
+<<<<<<< HEAD
             crate::ir::Statement::Evaluate { .. } => {
                 eprintln!("EVALUATE not implemented in interpreter");
             }
+=======
+            crate::ir::Statement::Evaluate { .. } => {}
+            crate::ir::Statement::OpenFile { .. } => {}
+            crate::ir::Statement::ReadFile { .. } => {}
+            crate::ir::Statement::WriteFile { .. } => {}
+            crate::ir::Statement::CloseFile { .. } => {}
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
         }
     }
 

@@ -1,0 +1,5 @@
+MOVE 5 TO X
+WHILE X > 0 DO
+    DISPLAY X
+    ADD -1 TO X
+END-WHILE

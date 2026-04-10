@@ -20,6 +20,13 @@ pub enum Statement {
         also_subject: Option<String>,
         when_clauses: Vec<WhenClause>,
     },
+<<<<<<< HEAD
+=======
+    OpenFile { mode: FileMode, name: String },
+    ReadFile { file: String, into: Option<String> },
+    WriteFile { file: String, from: Option<String> },
+    CloseFile { name: String },
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,4 +64,11 @@ pub struct Condition {
 pub struct Function {
     pub name: String,
     pub body: Vec<Statement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FileMode {
+    Input,
+    Output,
+    IO,
 }
