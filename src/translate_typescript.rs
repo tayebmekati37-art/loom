@@ -1,9 +1,17 @@
+<<<<<<< HEAD
 ﻿use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition};
+=======
+﻿use crate::ir::{Function, Statement, Source, Literal, Condition};
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
     let mut out = String::new();
+<<<<<<< HEAD
     writeln!(out, "function {}(): void {{", function.name).unwrap();
+=======
+    writeln!(out, "function translated_func(): void {").unwrap();
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
     if function.body.is_empty() {
         writeln!(out, "    // nothing").unwrap();
     } else {
@@ -11,7 +19,11 @@ pub fn translate(function: &Function) -> String {
             translate_statement(stmt, &mut out, "    ");
         }
     }
+<<<<<<< HEAD
     writeln!(out, "}}").unwrap();
+=======
+    writeln!(out, "}").unwrap();
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
     out
 }
 
@@ -55,6 +67,7 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::Display { value } => {
             let expr = match value {
                 Literal::Int(i) => i.to_string(),
+<<<<<<< HEAD
                 Literal::String(s) => format!("'{}'", s),
             };
             writeln!(out, "{}console.log({});", indent, expr).unwrap();
@@ -77,9 +90,17 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             if let Some(also) = also_subject {
                 writeln!(out, "{}    # also subject {} not supported", indent, also).unwrap();
             }
+=======
+                Literal::String(s) => s.clone(),
+            };
+            writeln!(out, "{}println!(\"{}\", {});", indent, expr, expr).unwrap();
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
         }
         _ => {}
     }
 }
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)

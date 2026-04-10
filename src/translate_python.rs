@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition};
+=======
+﻿use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition, FileMode};
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
@@ -75,6 +79,36 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                 writeln!(out, "{}    # also subject {} not supported", indent, also).unwrap();
             }
         }
+<<<<<<< HEAD
     }
 }
 
+=======
+        Statement::OpenFile { mode, name } => {
+            let mode_str = match mode {
+                FileMode::Input => "'r'",
+                FileMode::Output => "'w'",
+                FileMode::IO => "'r+'",
+            };
+            writeln!(out, "{}{} = open({}, {})", indent, name, name, mode_str).unwrap();
+        }
+        Statement::ReadFile { file, into } => {
+            if let Some(into) = into {
+                writeln!(out, "{}{} = {}.read()", indent, into, file).unwrap();
+            } else {
+                writeln!(out, "{}{}.read()", indent, file).unwrap();
+            }
+        }
+        Statement::WriteFile { file, from } => {
+            if let Some(from) = from {
+                writeln!(out, "{}{}.write(str({}))", indent, file, from).unwrap();
+            } else {
+                writeln!(out, "{}{}.write()", indent, file).unwrap();
+            }
+        }
+        Statement::CloseFile { name } => {
+            writeln!(out, "{}{}.close()", indent, name).unwrap();
+        }
+    }
+}
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)

@@ -314,6 +314,7 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
                 }
                 for when in when_clauses {
                     match &when.condition {
+<<<<<<< HEAD
                         WhenCondition::Variable(v) => { set.insert(v.clone()); }
                         _ => {}
                     }
@@ -326,17 +327,29 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
                 }
                 for when in when_clauses {
                     match &when.condition {
+=======
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
                         ir::WhenCondition::Variable(v) => { set.insert(v.clone()); }
                         _ => {}
                     }
                     collect_variables(&when.body, set);
                 }
             }
+<<<<<<< HEAD
+=======
+            ir::Statement::OpenFile { .. } => {}
+            ir::Statement::ReadFile { .. } => {}
+            ir::Statement::WriteFile { .. } => {}
+            ir::Statement::CloseFile { .. } => {}
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
         }
     }
 }
 
+<<<<<<< HEAD
 
 
 
 
+=======
+>>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
