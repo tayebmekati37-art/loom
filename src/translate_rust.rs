@@ -60,14 +60,11 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             writeln!(out, "{}println!(\"{}\", {});", indent, expr, expr).unwrap();
         }
         Statement::Evaluate { .. } => {}
-<<<<<<< HEAD
-    }
-}
-=======
         Statement::OpenFile { .. } => {}
         Statement::ReadFile { .. } => {}
         Statement::WriteFile { .. } => {}
         Statement::CloseFile { .. } => {}
+        Statement::String { .. } => {}
+Statement::Unstring { .. } => {}
     }
 }
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)

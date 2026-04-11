@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-﻿use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition};
-=======
-﻿use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition, FileMode};
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
+﻿use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition, FileMode, LiteralOrVariable, StringSource};
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
@@ -21,7 +17,7 @@ pub fn translate(function: &Function) -> String {
 fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
     match stmt {
         Statement::Add { target, value } => {
-            writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
+            writeln!(out, "{}{} = {} + {}", indent, target, target, value).unwrap();
         }
         Statement::Move { source, target } => {
             let src_expr = match source {
@@ -79,11 +75,6 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                 writeln!(out, "{}    # also subject {} not supported", indent, also).unwrap();
             }
         }
-<<<<<<< HEAD
-    }
-}
-
-=======
         Statement::OpenFile { mode, name } => {
             let mode_str = match mode {
                 FileMode::Input => "'r'",
@@ -109,6 +100,41 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::CloseFile { name } => {
             writeln!(out, "{}{}.close()", indent, name).unwrap();
         }
+        Statement::String { sources, into, pointer } => {
+            let mut parts = Vec::new();
+            for src in sources {
+                let src_str = match &src.source {
+                    LiteralOrVariable::Literal(lit) => match lit {
+                        Literal::Int(i) => i.to_string(),
+                        Literal::String(s) => format!("'{}'", s),
+                    },
+                    LiteralOrVariable::Variable(v) => v.clone(),
+                };
+                parts.push(src_str);
+            }
+            let joined = parts.join(" + ");
+            writeln!(out, "{}{} = {}", indent, into, joined).unwrap();
+            if let Some(ptr) = pointer {
+                writeln!(out, "{}# pointer {} not implemented", indent, ptr).unwrap();
+            }
+        }
+        Statement::Unstring { source, delimited_by, into, pointer } => {
+            let delim = match delimited_by {
+                Some(d) => match d {
+                    LiteralOrVariable::Literal(lit) => match lit {
+                        Literal::Int(i) => i.to_string(),
+                        Literal::String(s) => s.clone(),
+                    },
+                    LiteralOrVariable::Variable(v) => v.clone(),
+                },
+                None => " ".to_string(),
+            };
+            for (i, var) in into.iter().enumerate() {
+                writeln!(out, "{}{} = {}.split('{}')[{}]", indent, var, source, delim, i).unwrap();
+            }
+            if let Some(ptr) = pointer {
+                writeln!(out, "{}# pointer {} not implemented", indent, ptr).unwrap();
+            }
+        }
     }
 }
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)

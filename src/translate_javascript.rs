@@ -3,7 +3,7 @@ use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
     let mut out = String::new();
-    writeln!(out, "function translated_func() {{").unwrap();
+    writeln!(out, "function {}() {{", function.name).unwrap();
     if function.body.is_empty() {
         writeln!(out, "    // nothing").unwrap();
     } else {
@@ -21,21 +21,12 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
         }
         Statement::Move { source, target } => {
-<<<<<<< HEAD
-    let src_expr = match source {
-        Source::Literal(i) => i.to_string(),
-        Source::Variable(v) => v.clone(),
-    };
-    writeln!(out, "{}{} = {};", indent, target, src_expr).unwrap();
-}
-=======
             let src_expr = match source {
                 Source::Literal(i) => i.to_string(),
                 Source::Variable(v) => v.clone(),
             };
             writeln!(out, "{}{} = {};", indent, target, src_expr).unwrap();
         }
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
         Statement::If { condition, then_branch, else_branch } => {
             let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
             writeln!(out, "{}if ({}) {{", indent, cond_str).unwrap();
@@ -64,25 +55,6 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::Display { value } => {
             let expr = match value {
                 Literal::Int(i) => i.to_string(),
-<<<<<<< HEAD
-                Literal::String(s) => s.clone(),
-            };
-            writeln!(out, "{}console.log({});", indent, expr).unwrap();
-        }
-        _ => {}
-    }
-}
-
-
-
-
-
-
-
-
-
-
-=======
                 Literal::String(s) => format!("'{}'", s),
             };
             writeln!(out, "{}console.log({});", indent, expr).unwrap();
@@ -92,6 +64,7 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::ReadFile { .. } => {}
         Statement::WriteFile { .. } => {}
         Statement::CloseFile { .. } => {}
+        Statement::String { .. } => {}
+        Statement::Unstring { .. } => {}
     }
 }
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)

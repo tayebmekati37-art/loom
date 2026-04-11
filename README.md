@@ -1,31 +1,40 @@
+# Create professional README.md and push to GitHub
+Write-Host "Creating README.md..." -ForegroundColor Cyan
+
+$readmeContent = @'
 # Loom – Legacy Code Modernization Toolkit
 
-**Loom** is a lightweight, extensible tool that translates legacy code (COBOL, RPG, PL/I, and a simple mini‑language) into modern languages (Python, JavaScript, C#, Go, Rust, TypeScript, Kotlin, Swift, Zig, Nim, Dart). It validates translations using an interpreter or real legacy execution, and supports incremental migration via a strangler‑fig pattern.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)
+![Platform](https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey)
 
-> **Runs efficiently on 4GB RAM, i3 CPU** – no cloud or heavy dependencies required.
+**Loom** is a lightweight, extensible tool that translates legacy code (COBOL, RPG, PL/I, and a simple mini‑language) into modern languages (Python, JavaScript, C#, Go, Rust, TypeScript, Kotlin, Swift, Zig, Nim, Dart). It validates translations using an interpreter and supports incremental migration via a strangler‑fig pattern.
+
+> ✅ Runs efficiently on **4GB RAM, i3 CPU** – no cloud or heavy dependencies required.
 
 ---
 
 ## Features
 
-- **Multi‑legacy input** – simple language, COBOL, RPG, PL/I (easily add more via pest grammars).
-- **Multi‑modern output** – 11 target languages with identical IR.
-- **Validation** – compares legacy interpreter output with generated code; can record test cases for regression.
-- **Incremental migration** – generates wrapper code to route calls between legacy and modern components.
-- **Resource‑friendly** – compiled Rust binary, no GC, minimal memory footprint.
-- **Extensible** – add a new grammar or translator in under 100 lines.
+| Area | Description |
+|------|-------------|
+| **Legacy languages** | Simple (custom), COBOL, RPG, PL/I – easily add more via hand‑written or pest grammars |
+| **Target languages** | 11 modern languages: Python, JavaScript, C#, Go, Rust, TypeScript, Kotlin, Swift, Zig, Nim, Dart |
+| **Statements** | `ADD`, `MOVE`, `IF`/`ELSE`, `PERFORM` (subroutines), `WHILE` loops, `DISPLAY`, `EVALUATE`, file I/O (`OPEN`, `READ`, `WRITE`, `CLOSE`) |
+| **Validation** | Built‑in interpreter compares legacy vs. translated output; can record/load test cases |
+| **Migration** | Generates strangler‑fig wrappers for incremental replacement |
+| **Resource usage** | Compiled Rust binary, no garbage collector, minimal memory footprint |
 
 ---
 
 ## Installation
 
 ### Prerequisites
-- Rust (1.70+)
-- Python 3 (for validation runner, optional)
-- (Optional) Legacy runtime – e.g., `cobc` for COBOL, `python` for simple language.
+- [Rust](https://rustup.rs/) (1.70 or later)
+- (Optional) Python 3 – for validation runner
 
 ### Build from source
 ```bash
-git clone https://github.com/yourusername/loom.git
+git clone https://github.com/tayebmekati37-art/loom.git
 cd loom
 cargo build --release

@@ -20,13 +20,21 @@ pub enum Statement {
         also_subject: Option<String>,
         when_clauses: Vec<WhenClause>,
     },
-<<<<<<< HEAD
-=======
     OpenFile { mode: FileMode, name: String },
     ReadFile { file: String, into: Option<String> },
     WriteFile { file: String, from: Option<String> },
     CloseFile { name: String },
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
+    String {
+        sources: Vec<StringSource>,
+        into: String,
+        pointer: Option<String>,
+    },
+    Unstring {
+        source: String,
+        delimited_by: Option<LiteralOrVariable>,
+        into: Vec<String>,
+        pointer: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,4 +79,16 @@ pub enum FileMode {
     Input,
     Output,
     IO,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StringSource {
+    pub source: LiteralOrVariable,
+    pub delimited_by: Option<LiteralOrVariable>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LiteralOrVariable {
+    Literal(Literal),
+    Variable(String),
 }
