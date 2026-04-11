@@ -1,4 +1,4 @@
-﻿use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition, FileMode, LiteralOrVariable, StringSource};
+use crate::ir::{Function, Statement, Source, Literal, Condition};
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
@@ -56,85 +56,6 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             };
             writeln!(out, "{indent}print({expr})").unwrap();
         }
-        Statement::Evaluate { subject, also_subject, when_clauses } => {
-            writeln!(out, "{}match {}:", indent, subject).unwrap();
-            for when in when_clauses {
-                let cond_str = match &when.condition {
-                    WhenCondition::Literal(lit) => match lit {
-                        Literal::Int(i) => i.to_string(),
-                        Literal::String(s) => format!("'{}'", s),
-                    },
-                    WhenCondition::Variable(v) => v.clone(),
-                };
-                writeln!(out, "{}    case {}:", indent, cond_str).unwrap();
-                for stmt in &when.body {
-                    translate_statement(stmt, out, &format!("{}        ", indent));
-                }
-            }
-            if let Some(also) = also_subject {
-                writeln!(out, "{}    # also subject {} not supported", indent, also).unwrap();
-            }
-        }
-        Statement::OpenFile { mode, name } => {
-            let mode_str = match mode {
-                FileMode::Input => "'r'",
-                FileMode::Output => "'w'",
-                FileMode::IO => "'r+'",
-            };
-            writeln!(out, "{}{} = open({}, {})", indent, name, name, mode_str).unwrap();
-        }
-        Statement::ReadFile { file, into } => {
-            if let Some(into) = into {
-                writeln!(out, "{}{} = {}.read()", indent, into, file).unwrap();
-            } else {
-                writeln!(out, "{}{}.read()", indent, file).unwrap();
-            }
-        }
-        Statement::WriteFile { file, from } => {
-            if let Some(from) = from {
-                writeln!(out, "{}{}.write(str({}))", indent, file, from).unwrap();
-            } else {
-                writeln!(out, "{}{}.write()", indent, file).unwrap();
-            }
-        }
-        Statement::CloseFile { name } => {
-            writeln!(out, "{}{}.close()", indent, name).unwrap();
-        }
-        Statement::String { sources, into, pointer } => {
-            let mut parts = Vec::new();
-            for src in sources {
-                let src_str = match &src.source {
-                    LiteralOrVariable::Literal(lit) => match lit {
-                        Literal::Int(i) => i.to_string(),
-                        Literal::String(s) => format!("'{}'", s),
-                    },
-                    LiteralOrVariable::Variable(v) => v.clone(),
-                };
-                parts.push(src_str);
-            }
-            let joined = parts.join(" + ");
-            writeln!(out, "{}{} = {}", indent, into, joined).unwrap();
-            if let Some(ptr) = pointer {
-                writeln!(out, "{}# pointer {} not implemented", indent, ptr).unwrap();
-            }
-        }
-        Statement::Unstring { source, delimited_by, into, pointer } => {
-            let delim = match delimited_by {
-                Some(d) => match d {
-                    LiteralOrVariable::Literal(lit) => match lit {
-                        Literal::Int(i) => i.to_string(),
-                        Literal::String(s) => s.clone(),
-                    },
-                    LiteralOrVariable::Variable(v) => v.clone(),
-                },
-                None => " ".to_string(),
-            };
-            for (i, var) in into.iter().enumerate() {
-                writeln!(out, "{}{} = {}.split('{}')[{}]", indent, var, source, delim, i).unwrap();
-            }
-            if let Some(ptr) = pointer {
-                writeln!(out, "{}# pointer {} not implemented", indent, ptr).unwrap();
-            }
-        }
+        _ => {}
     }
 }

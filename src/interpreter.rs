@@ -127,14 +127,28 @@ impl Interpreter {
                     crate::ir::Literal::String(s) => println!("{}", s),
                 }
             }
-            // Stubs for new statements
-            crate::ir::Statement::Evaluate { .. } => {}
-            crate::ir::Statement::OpenFile { .. } => {}
-            crate::ir::Statement::ReadFile { .. } => {}
-            crate::ir::Statement::WriteFile { .. } => {}
-            crate::ir::Statement::CloseFile { .. } => {}
-            crate::ir::Statement::String { .. } => {}
-            crate::ir::Statement::Unstring { .. } => {}
+            // Stubs for advanced statements
+            crate::ir::Statement::Evaluate { .. } => {
+                eprintln!("EVALUATE not implemented in interpreter, ignoring");
+            }
+            crate::ir::Statement::String { .. } => {
+                eprintln!("STRING not implemented in interpreter, ignoring");
+            }
+            crate::ir::Statement::Unstring { .. } => {
+                eprintln!("UNSTRING not implemented in interpreter, ignoring");
+            }
+            crate::ir::Statement::OpenFile { .. } => {
+                eprintln!("OPEN not implemented in interpreter, ignoring");
+            }
+            crate::ir::Statement::ReadFile { .. } => {
+                eprintln!("READ not implemented in interpreter, ignoring");
+            }
+            crate::ir::Statement::WriteFile { .. } => {
+                eprintln!("WRITE not implemented in interpreter, ignoring");
+            }
+            crate::ir::Statement::CloseFile { .. } => {
+                eprintln!("CLOSE not implemented in interpreter, ignoring");
+            }
         }
     }
 

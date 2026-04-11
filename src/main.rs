@@ -1,4 +1,4 @@
-﻿mod parser;
+mod parser;
 mod parser_cobol;
 mod ir;
 mod translate_python;
@@ -100,7 +100,7 @@ fn main() -> anyhow::Result<()> {
                 _ => anyhow::bail!("Unsupported target: {}", target),
             }
         }
-        Commands::Validate { input, lang, inputs, record, test_file } => {
+                Commands::Validate { input, lang, inputs, record, test_file } => {
             let bytes = std::fs::read(&input)?;
             let content = String::from_utf8_lossy(&bytes).to_string();
             let content = content.trim_start_matches('\u{feff}').to_string();
@@ -113,6 +113,7 @@ fn main() -> anyhow::Result<()> {
                 name: "translated_func".to_string(),
                 body: statements,
             };
+
             let test_path = test_file.unwrap_or_else(|| format!("{}.tests.json", input));
             let test_cases = if record {
                 let cases = generate_test_cases(&func)?;
@@ -147,18 +148,24 @@ fn main() -> anyhow::Result<()> {
                     generate_test_cases(&func)?
                 }
             };
+
             let mut passed = true;
             for (i, inputs_map) in test_cases.iter().enumerate() {
                 let mut interpreter = interpreter::Interpreter::new();
                 interpreter.add_function(func.clone());
                 let legacy_output = interpreter.run(&func.name, inputs_map.clone());
+
                 let python_code = translate_python::translate(&func);
                 let python_output = run_python(&python_code, inputs_map)?;
-                if true { // legacy_output == python_output (temporarily bypassed)
+
+                if legacy_output == python_output {
                     println!("Test case {} PASSED", i);
                 } else {
                     passed = false;
                     println!("Test case {} FAILED", i);
+                    println!("  Inputs: {:?}", inputs_map);
+                    println!("  Legacy output: {:?}", legacy_output);
+                    println!("  Python output: {:?}", python_output);
                 }
             }
             if passed {
@@ -197,6 +204,16 @@ fn main() -> anyhow::Result<()> {
 
 // --- Helper functions for validation ---
 
+fn parse_output(s: &str) -> anyhow::Result<HashMap<String, i64>> {
+    let mut map = HashMap::new();
+    for line in s.lines() {
+        if let Some((key, val)) = line.split_once('=') {
+            map.insert(key.trim().to_string(), val.trim().parse::<i64>()?);
+        }
+    }
+    Ok(map)
+}
+
 fn run_python(code: &str, inputs: &HashMap<String, i64>) -> anyhow::Result<HashMap<String, i64>> {
     use std::process::Command;
     use tempfile::NamedTempFile;
@@ -210,9 +227,8 @@ fn run_python(code: &str, inputs: &HashMap<String, i64>) -> anyhow::Result<HashM
     writeln!(temp_file, "    translated_func()")?;
     writeln!(temp_file, "    result = {{}}")?;
     for name in inputs.keys() {
-        writeln!(temp_file, "    result['{}'] = {}", name, name)?;
+        writeln!(temp_file, "    print('{}={{}}'.format({}))", name, name)?;
     }
-    writeln!(temp_file, "    print(result)")?;
 
     let path = temp_file.path().to_str().unwrap();
     let output = Command::new("python")
@@ -225,7 +241,7 @@ fn run_python(code: &str, inputs: &HashMap<String, i64>) -> anyhow::Result<HashM
     }
 
     let stdout = String::from_utf8(output.stdout)?;
-    parse_python_dict(&stdout)
+    parse_output(&stdout)
 }
 
 fn parse_python_dict(s: &str) -> anyhow::Result<HashMap<String, i64>> {
@@ -328,4 +344,6 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
             ir::Statement::CloseFile { .. } => {}
         }
     }
+
+
 }
