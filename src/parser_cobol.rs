@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-﻿use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition};
-=======
-﻿use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition, FileMode};
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
+﻿use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition, FileMode, LiteralOrVariable, StringSource};
 
 pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     let input = input.trim();
@@ -17,10 +13,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
         }
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.is_empty() {
-<<<<<<< HEAD
-=======
             i += 1;
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
             continue;
         }
         match parts[0].to_lowercase().as_str() {
@@ -44,38 +37,9 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 let value = parts[1].parse::<i64>()?;
                 let target = parts[3].to_string();
                 statements.push(Statement::Add { target, value });
-<<<<<<< HEAD
-            }
-            "if" => {
-               let lower_line = line.to_lowercase();
-               let then_idx = lower_line.find(" then ").or_else(|| lower_line.find(" then")).ok_or_else(|| anyhow::anyhow!("Missing THEN in IF statement: {}", line))?;
-               let condition_str = lower_line[3..then_idx].trim().to_string();
-               let after_then = lower_line[then_idx + 5..].trim_start().to_string();
-               let (then_part, else_part_opt) = if let Some(else_idx) = after_then.find(" else ") {
-               (after_then[..else_idx].to_string(), Some(after_then[else_idx + 5..].trim_start().to_string()))
-                } else {
-               (after_then, None)
-             };
-               let then_part = then_part.trim_end_matches(" end-if").trim_end().to_string();
-               let condition = parse_condition_str(&condition_str)?;
-               let then_stmts = parse_statements_from_line(&then_part)?;
-               let else_stmts = if let Some(else_part) = else_part_opt {
-                let else_part = else_part.trim_end_matches(" end-if").trim_end().to_string();
-                parse_statements_from_line(&else_part)?
-        } else {
-          vec![]
-        };
-             statements.push(Statement::If {
-              condition,
-              then_branch: then_stmts,
-             else_branch: if else_stmts.is_empty() { None } else { Some(else_stmts) },
-         });
-        }
-=======
                 i += 1;
             }
             "if" => {
-                // single-line IF (as before)
                 let lower_line = line.to_lowercase();
                 let then_idx = lower_line.find(" then ").or_else(|| lower_line.find(" then")).ok_or_else(|| anyhow::anyhow!("Missing THEN in IF statement: {}", line))?;
                 let condition_str = lower_line[3..then_idx].trim().to_string();
@@ -101,7 +65,6 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 });
                 i += 1;
             }
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
             "perform" => {
                 if parts.len() != 2 {
                     anyhow::bail!("Invalid PERFORM statement: {}", line);
@@ -111,28 +74,26 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
             }
             "while" => {
-<<<<<<< HEAD
-                eprintln!("WHILE not implemented, ignoring: {}", line);
-=======
-                let condition_str = line.strip_prefix("while").unwrap().trim().to_string();
-                i += 1;
-                let mut body_stmts = Vec::new();
-                while i < lines.len() {
-                    let l = lines[i].trim();
-                    if l.to_lowercase().starts_with("end-while") {
-                        i += 1;
-                        break;
-                    }
-                    if !l.is_empty() {
-                        let sub_stmt = parse_single_statement(l)?;
-                        body_stmts.push(sub_stmt);
-                    }
-                    i += 1;
-                }
-                let condition = parse_condition_str(&condition_str)?;
-                statements.push(Statement::While { condition, body: body_stmts });
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
-            }
+    let line_lower = line.to_lowercase();
+    let after_while = line_lower.strip_prefix("while").unwrap().trim();
+    let condition_str = after_while.strip_suffix("do").unwrap_or(after_while).trim().to_string();
+    i += 1;
+    let mut body_stmts = Vec::new();
+    while i < lines.len() {
+        let l = lines[i].trim();
+        if l.to_lowercase().starts_with("end-while") {
+            i += 1;
+            break;
+        }
+        if !l.is_empty() {
+            let sub_stmt = parse_single_statement(l)?;
+            body_stmts.push(sub_stmt);
+        }
+        i += 1;
+    }
+    let condition = parse_condition_str(&condition_str)?;
+    statements.push(Statement::While { condition, body: body_stmts });
+}
             "display" => {
                 if parts.len() < 2 {
                     anyhow::bail!("Invalid DISPLAY statement: {}", line);
@@ -144,11 +105,6 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                     Literal::String(lit_str.trim_matches('\'').to_string())
                 };
                 statements.push(Statement::Display { value: lit });
-<<<<<<< HEAD
-            }
-            "evaluate" => {
-                eprintln!("EVALUATE not implemented, ignoring: {}", line);
-=======
                 i += 1;
             }
             "evaluate" => {
@@ -200,6 +156,40 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 }
                 statements.push(Statement::Evaluate { subject, also_subject, when_clauses });
             }
+            "string" => {
+                let mut string_parts = Vec::new();
+                i += 1;
+                while i < lines.len() {
+                    let l = lines[i].trim();
+                    if l.to_lowercase().starts_with("end-string") {
+                        i += 1;
+                        break;
+                    }
+                    if !l.is_empty() {
+                        string_parts.push(l.to_string());
+                    }
+                    i += 1;
+                }
+                let (sources, into, pointer) = parse_string_statement(&string_parts)?;
+                statements.push(Statement::String { sources, into, pointer });
+            }
+            "unstring" => {
+                let mut unstring_parts = Vec::new();
+                i += 1;
+                while i < lines.len() {
+                    let l = lines[i].trim();
+                    if l.to_lowercase().starts_with("end-unstring") {
+                        i += 1;
+                        break;
+                    }
+                    if !l.is_empty() {
+                        unstring_parts.push(l.to_string());
+                    }
+                    i += 1;
+                }
+                let (source, delimited_by, into_vars, pointer) = parse_unstring_statement(&unstring_parts)?;
+                statements.push(Statement::Unstring { source, delimited_by, into: into_vars, pointer });
+            }
             "open" => {
                 if parts.len() != 3 {
                     anyhow::bail!("Invalid OPEN statement: {}", line);
@@ -248,7 +238,6 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 let name = parts[1].to_string();
                 statements.push(Statement::CloseFile { name });
                 i += 1;
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
             }
             _ => anyhow::bail!("Unknown statement: {}", line),
         }
@@ -256,8 +245,6 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     Ok(statements)
 }
 
-<<<<<<< HEAD
-=======
 fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
     let parts: Vec<&str> = line.split_whitespace().collect();
     if parts.is_empty() {
@@ -303,7 +290,6 @@ fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
     }
 }
 
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
 fn parse_condition_str(s: &str) -> Result<Condition, anyhow::Error> {
     let parts: Vec<&str> = s.split_whitespace().collect();
     if parts.len() != 3 {
@@ -359,8 +345,87 @@ fn parse_statements_from_line(line: &str) -> Result<Vec<Statement>, anyhow::Erro
         _ => anyhow::bail!("Unsupported statement in IF block: {}", line),
     };
     Ok(vec![stmt])
-<<<<<<< HEAD
 }
-=======
+
+fn parse_string_statement(lines: &[String]) -> Result<(Vec<StringSource>, String, Option<String>), anyhow::Error> {
+    let mut sources = Vec::new();
+    let mut into = String::new();
+    let mut pointer = None;
+    for line in lines {
+        let lower = line.to_lowercase();
+        if lower.contains("into") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if let Some(pos) = parts.iter().position(|&x| x.to_lowercase() == "into") {
+                if pos + 1 < parts.len() {
+                    into = parts[pos + 1].to_string();
+                }
+            }
+        } else if lower.contains("pointer") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if let Some(pos) = parts.iter().position(|&x| x.to_lowercase() == "pointer") {
+                if pos + 1 < parts.len() {
+                    pointer = Some(parts[pos + 1].to_string());
+                }
+            }
+        } else {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                let source = if trimmed.starts_with('\'') && trimmed.ends_with('\'') {
+                    LiteralOrVariable::Literal(Literal::String(trimmed[1..trimmed.len()-1].to_string()))
+                } else if let Ok(num) = trimmed.parse::<i64>() {
+                    LiteralOrVariable::Literal(Literal::Int(num))
+                } else {
+                    LiteralOrVariable::Variable(trimmed.to_string())
+                };
+                sources.push(StringSource { source, delimited_by: None });
+            }
+        }
+    }
+    Ok((sources, into, pointer))
 }
->>>>>>> 1660d98 (Add file I/O support (OPEN, READ, WRITE, CLOSE) for COBOL to Python; fix UTF-8 by using ASCII bytes)
+
+fn parse_unstring_statement(lines: &[String]) -> Result<(String, Option<LiteralOrVariable>, Vec<String>, Option<String>), anyhow::Error> {
+    let mut source = String::new();
+    let mut delimited_by = None;
+    let mut into_vars = Vec::new();
+    let mut pointer = None;
+    for line in lines {
+        let lower = line.to_lowercase();
+        if lower.contains("delimited by") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if let Some(pos) = parts.iter().position(|&x| x.to_lowercase() == "delimited") {
+                if pos + 2 < parts.len() && parts[pos+1].to_lowercase() == "by" {
+                    let delim = parts[pos+2];
+                    let lit_or_var = if delim.starts_with('\'') && delim.ends_with('\'') {
+                        LiteralOrVariable::Literal(Literal::String(delim[1..delim.len()-1].to_string()))
+                    } else if let Ok(num) = delim.parse::<i64>() {
+                        LiteralOrVariable::Literal(Literal::Int(num))
+                    } else {
+                        LiteralOrVariable::Variable(delim.to_string())
+                    };
+                    delimited_by = Some(lit_or_var);
+                }
+            }
+        } else if lower.contains("into") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if let Some(pos) = parts.iter().position(|&x| x.to_lowercase() == "into") {
+                for i in pos+1..parts.len() {
+                    into_vars.push(parts[i].to_string());
+                }
+            }
+        } else if lower.contains("pointer") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if let Some(pos) = parts.iter().position(|&x| x.to_lowercase() == "pointer") {
+                if pos + 1 < parts.len() {
+                    pointer = Some(parts[pos + 1].to_string());
+                }
+            }
+        } else {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                source = trimmed.to_string();
+            }
+        }
+    }
+    Ok((source, delimited_by, into_vars, pointer))
+}
