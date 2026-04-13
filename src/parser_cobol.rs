@@ -74,26 +74,26 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
             }
             "while" => {
-    let line_lower = line.to_lowercase();
-    let after_while = line_lower.strip_prefix("while").unwrap().trim();
-    let condition_str = after_while.strip_suffix("do").unwrap_or(after_while).trim().to_string();
-    i += 1;
-    let mut body_stmts = Vec::new();
-    while i < lines.len() {
-        let l = lines[i].trim();
-        if l.to_lowercase().starts_with("end-while") {
-            i += 1;
-            break;
-        }
-        if !l.is_empty() {
-            let sub_stmt = parse_single_statement(l)?;
-            body_stmts.push(sub_stmt);
-        }
-        i += 1;
-    }
-    let condition = parse_condition_str(&condition_str)?;
-    statements.push(Statement::While { condition, body: body_stmts });
-}
+                let line_lower = line.to_lowercase();
+                let after_while = line_lower.strip_prefix("while").unwrap().trim();
+                let condition_str = after_while.strip_suffix("do").unwrap_or(after_while).trim().to_string();
+                i += 1;
+                let mut body_stmts = Vec::new();
+                while i < lines.len() {
+                    let l = lines[i].trim();
+                    if l.to_lowercase().starts_with("end-while") {
+                        i += 1;
+                        break;
+                    }
+                    if !l.is_empty() {
+                        let sub_stmt = parse_single_statement(l)?;
+                        body_stmts.push(sub_stmt);
+                    }
+                    i += 1;
+                }
+                let condition = parse_condition_str(&condition_str)?;
+                statements.push(Statement::While { condition, body: body_stmts });
+            }
             "display" => {
                 if parts.len() < 2 {
                     anyhow::bail!("Invalid DISPLAY statement: {}", line);
@@ -156,8 +156,13 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 }
                 statements.push(Statement::Evaluate { subject, also_subject, when_clauses });
             }
-            "string" => {
+                                              "string" => {
+                let lower_line = line.to_lowercase();
+                let first_line_rest = lower_line.strip_prefix("string").unwrap().trim();
                 let mut string_parts = Vec::new();
+                if !first_line_rest.is_empty() {
+                    string_parts.push(first_line_rest.to_string());
+                }
                 i += 1;
                 while i < lines.len() {
                     let l = lines[i].trim();
@@ -348,40 +353,55 @@ fn parse_statements_from_line(line: &str) -> Result<Vec<Statement>, anyhow::Erro
 }
 
 fn parse_string_statement(lines: &[String]) -> Result<(Vec<StringSource>, String, Option<String>), anyhow::Error> {
+    // Combine all lines into a single string (preserving spaces)
+    let full_text = lines.join(" ");
+    // Find the "INTO" keyword
+    let into_pos = full_text.to_lowercase().find(" into ").ok_or_else(|| anyhow::anyhow!("Missing INTO clause in STRING statement"))?;
+    let before_into = &full_text[..into_pos];
+    let after_into = &full_text[into_pos + 6..]; // skip "into "
+    // The target variable is the first word after INTO
+    let into = after_into.split_whitespace().next().ok_or_else(|| anyhow::anyhow!("Missing target variable after INTO"))?.to_string();
+    // Parse sources from before_into (split by spaces but respect quotes)
     let mut sources = Vec::new();
-    let mut into = String::new();
-    let mut pointer = None;
-    for line in lines {
-        let lower = line.to_lowercase();
-        if lower.contains("into") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if let Some(pos) = parts.iter().position(|&x| x.to_lowercase() == "into") {
-                if pos + 1 < parts.len() {
-                    into = parts[pos + 1].to_string();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    for ch in before_into.chars() {
+        if ch == '\'' {
+            in_quotes = !in_quotes;
+            current.push(ch);
+        } else if ch == ' ' && !in_quotes {
+            if !current.is_empty() {
+                let trimmed = current.trim();
+                if !trimmed.is_empty() {
+                    let source = if trimmed.starts_with('\'') && trimmed.ends_with('\'') {
+                        LiteralOrVariable::Literal(Literal::String(trimmed[1..trimmed.len()-1].to_string()))
+                    } else if let Ok(num) = trimmed.parse::<i64>() {
+                        LiteralOrVariable::Literal(Literal::Int(num))
+                    } else {
+                        LiteralOrVariable::Variable(trimmed.to_string())
+                    };
+                    sources.push(StringSource { source, delimited_by: None });
                 }
-            }
-        } else if lower.contains("pointer") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if let Some(pos) = parts.iter().position(|&x| x.to_lowercase() == "pointer") {
-                if pos + 1 < parts.len() {
-                    pointer = Some(parts[pos + 1].to_string());
-                }
+                current.clear();
             }
         } else {
-            let trimmed = line.trim();
-            if !trimmed.is_empty() {
-                let source = if trimmed.starts_with('\'') && trimmed.ends_with('\'') {
-                    LiteralOrVariable::Literal(Literal::String(trimmed[1..trimmed.len()-1].to_string()))
-                } else if let Ok(num) = trimmed.parse::<i64>() {
-                    LiteralOrVariable::Literal(Literal::Int(num))
-                } else {
-                    LiteralOrVariable::Variable(trimmed.to_string())
-                };
-                sources.push(StringSource { source, delimited_by: None });
-            }
+            current.push(ch);
         }
     }
-    Ok((sources, into, pointer))
+    if !current.is_empty() {
+        let trimmed = current.trim();
+        if !trimmed.is_empty() {
+            let source = if trimmed.starts_with('\'') && trimmed.ends_with('\'') {
+                LiteralOrVariable::Literal(Literal::String(trimmed[1..trimmed.len()-1].to_string()))
+            } else if let Ok(num) = trimmed.parse::<i64>() {
+                LiteralOrVariable::Literal(Literal::Int(num))
+            } else {
+                LiteralOrVariable::Variable(trimmed.to_string())
+            };
+            sources.push(StringSource { source, delimited_by: None });
+        }
+    }
+    Ok((sources, into, None))
 }
 
 fn parse_unstring_statement(lines: &[String]) -> Result<(String, Option<LiteralOrVariable>, Vec<String>, Option<String>), anyhow::Error> {
@@ -426,6 +446,9 @@ fn parse_unstring_statement(lines: &[String]) -> Result<(String, Option<LiteralO
                 source = trimmed.to_string();
             }
         }
+    }
+    if source.is_empty() {
+        anyhow::bail!("Missing source in UNSTRING statement");
     }
     Ok((source, delimited_by, into_vars, pointer))
 }

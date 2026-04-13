@@ -1,4 +1,4 @@
-use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition};
+﻿use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition};
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
