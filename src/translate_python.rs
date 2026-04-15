@@ -1,4 +1,4 @@
-﻿use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition};
+﻿use crate::ir::{Function, Statement, Source, Literal, Condition, WhenClause, WhenCondition, LiteralOrVariable, StringSource};
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
@@ -74,6 +74,21 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             if let Some(also) = also_subject {
                 writeln!(out, "{}    # also subject {} not supported", indent, also).unwrap();
             }
+        }
+        Statement::String { sources, into, pointer: _ } => {
+            let mut parts = Vec::new();
+            for src in sources {
+                let src_str = match &src.source {
+                    LiteralOrVariable::Literal(lit) => match lit {
+                        Literal::Int(i) => i.to_string(),
+                        Literal::String(s) => format!("'{}'", s),
+                    },
+                    LiteralOrVariable::Variable(v) => v.clone(),
+                };
+                parts.push(src_str);
+            }
+            let joined = parts.join(" + ");
+            writeln!(out, "{}{} = {}", indent, into, joined).unwrap();
         }
         _ => {}
     }
