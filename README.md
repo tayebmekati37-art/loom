@@ -138,13 +138,6 @@ Migration – generates strangler-fig wrappers
 
 ---
 
-Contributing
-
-Pull requests are welcome. Please follow the existing code style and add tests for new features.
-
-
----
-
 License
 
 MIT © Tayeb Mekati – see LICENSE for details.
