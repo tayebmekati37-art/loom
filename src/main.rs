@@ -1,5 +1,9 @@
-mod parser;
+﻿mod parser;
 mod parser_cobol;
+mod parser_rpg;
+mod parser_pli;
+mod parser_jcl;
+mod parser_asm;
 mod ir;
 mod translate_python;
 mod translate_javascript;
@@ -78,7 +82,11 @@ fn main() -> anyhow::Result<()> {
             let content = content.trim_start_matches('\u{feff}').to_string();
             let statements = match lang.as_str() {
                 "simple" => parser::parse_program(&content)?,
-                "cobol" | "rpg" | "pli" => parser_cobol::parse_program(&content)?,
+                "cobol" => parser_cobol::parse_program(&content)?,
+                "rpg" => parser_rpg::parse_program(&content)?,
+                "pli" => parser_pli::parse_program(&content)?,
+                "jcl" => parser_jcl::parse_program(&content)?,
+                "asm" => parser_asm::parse_program(&content)?,
                 _ => anyhow::bail!("Unsupported legacy language: {}", lang),
             };
             let func = ir::Function {
@@ -100,20 +108,23 @@ fn main() -> anyhow::Result<()> {
                 _ => anyhow::bail!("Unsupported target: {}", target),
             }
         }
-                Commands::Validate { input, lang, inputs, record, test_file } => {
+        Commands::Validate { input, lang, inputs, record, test_file } => {
             let bytes = std::fs::read(&input)?;
             let content = String::from_utf8_lossy(&bytes).to_string();
             let content = content.trim_start_matches('\u{feff}').to_string();
             let statements = match lang.as_str() {
                 "simple" => parser::parse_program(&content)?,
-                "cobol" | "rpg" | "pli" => parser_cobol::parse_program(&content)?,
+                "cobol" => parser_cobol::parse_program(&content)?,
+                "rpg" => parser_rpg::parse_program(&content)?,
+                "pli" => parser_pli::parse_program(&content)?,
+                "jcl" => parser_jcl::parse_program(&content)?,
+                "asm" => parser_asm::parse_program(&content)?,
                 _ => anyhow::bail!("Unsupported legacy language: {}", lang),
             };
             let func = ir::Function {
                 name: "translated_func".to_string(),
                 body: statements,
             };
-
             let test_path = test_file.unwrap_or_else(|| format!("{}.tests.json", input));
             let test_cases = if record {
                 let cases = generate_test_cases(&func)?;
@@ -148,16 +159,13 @@ fn main() -> anyhow::Result<()> {
                     generate_test_cases(&func)?
                 }
             };
-
             let mut passed = true;
             for (i, inputs_map) in test_cases.iter().enumerate() {
                 let mut interpreter = interpreter::Interpreter::new();
                 interpreter.add_function(func.clone());
                 let legacy_output = interpreter.run(&func.name, inputs_map.clone());
-
                 let python_code = translate_python::translate(&func);
                 let python_output = run_python(&python_code, inputs_map)?;
-
                 if legacy_output == python_output {
                     println!("Test case {} PASSED", i);
                 } else {
@@ -204,16 +212,6 @@ fn main() -> anyhow::Result<()> {
 
 // --- Helper functions for validation ---
 
-fn parse_output(s: &str) -> anyhow::Result<HashMap<String, i64>> {
-    let mut map = HashMap::new();
-    for line in s.lines() {
-        if let Some((key, val)) = line.split_once('=') {
-            map.insert(key.trim().to_string(), val.trim().parse::<i64>()?);
-        }
-    }
-    Ok(map)
-}
-
 fn run_python(code: &str, inputs: &HashMap<String, i64>) -> anyhow::Result<HashMap<String, i64>> {
     use std::process::Command;
     use tempfile::NamedTempFile;
@@ -225,43 +223,27 @@ fn run_python(code: &str, inputs: &HashMap<String, i64>) -> anyhow::Result<HashM
         writeln!(temp_file, "    {} = {}", name, value)?;
     }
     writeln!(temp_file, "    translated_func()")?;
-    writeln!(temp_file, "    result = {{}}")?;
     for name in inputs.keys() {
         writeln!(temp_file, "    print('{}={{}}'.format({}))", name, name)?;
     }
-
     let path = temp_file.path().to_str().unwrap();
     let output = Command::new("python")
         .arg(path)
         .output()?;
-
     if !output.status.success() {
         let stderr = String::from_utf8(output.stderr)?;
         anyhow::bail!("Python execution failed: {}", stderr);
     }
-
     let stdout = String::from_utf8(output.stdout)?;
     parse_output(&stdout)
 }
 
-fn parse_python_dict(s: &str) -> anyhow::Result<HashMap<String, i64>> {
-    let s = s.trim();
-    if !s.starts_with('{') || !s.ends_with('}') {
-        anyhow::bail!("Invalid dict format: {}", s);
-    }
-    let inner = &s[1..s.len() - 1];
+fn parse_output(s: &str) -> anyhow::Result<HashMap<String, i64>> {
     let mut map = HashMap::new();
-    if inner.is_empty() {
-        return Ok(map);
-    }
-    for pair in inner.split(',') {
-        let parts: Vec<&str> = pair.split(':').collect();
-        if parts.len() != 2 {
-            continue;
+    for line in s.lines() {
+        if let Some((key, val)) = line.split_once('=') {
+            map.insert(key.trim().to_string(), val.trim().parse::<i64>()?);
         }
-        let key = parts[0].trim().trim_matches('\'').to_string();
-        let value = parts[1].trim().parse::<i64>()?;
-        map.insert(key, value);
     }
     Ok(map)
 }
@@ -290,9 +272,7 @@ fn generate_test_cases(func: &ir::Function) -> anyhow::Result<Vec<HashMap<String
 fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSet<String>) {
     for stmt in stmts {
         match stmt {
-            ir::Statement::Add { target, .. } => {
-                set.insert(target.clone());
-            }
+            ir::Statement::Add { target, .. } => { set.insert(target.clone()); }
             ir::Statement::Move { source, target } => {
                 set.insert(target.clone());
                 if let ir::Source::Variable(v) = source {
@@ -344,6 +324,4 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
             ir::Statement::CloseFile { .. } => {}
         }
     }
-
-
 }
