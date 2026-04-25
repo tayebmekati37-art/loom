@@ -7,7 +7,7 @@
 
 **Loom** is a lightweight, extensible tool that translates legacy code (COBOL, RPG, PL/I, and a simple mini-language) into modern languages (Python, JavaScript, C#, Go, Rust, TypeScript, Kotlin, Swift, Zig, Nim, Dart). It validates translations using an interpreter and supports incremental migration via a strangler-fig pattern.
 
-> ✅ Runs efficiently on **4GB RAM, i3 CPU** – no cloud or heavy dependencies required.
+> ✅ Runs efficiently on **4GB RAM, i3 CPU** – no cloud or heavy dependencies .
 
 ---
 
