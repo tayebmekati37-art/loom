@@ -1,0 +1,5 @@
+C                   MOVE 5            X
+C                   ADD 10            X
+C                   SUB 3             X
+C                   MOVE X            Y
+C                   DSPLY Y
