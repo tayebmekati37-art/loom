@@ -1,4 +1,4 @@
-﻿use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
@@ -91,4 +91,10 @@ pub struct StringSource {
 pub enum LiteralOrVariable {
     Literal(Literal),
     Variable(String),
+    
+    
+
+    
 }
+    
+    

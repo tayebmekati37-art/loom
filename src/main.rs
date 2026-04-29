@@ -1,4 +1,4 @@
-﻿mod parser;
+mod parser;
 mod parser_cobol;
 mod parser_rpg;
 mod parser_pli;
