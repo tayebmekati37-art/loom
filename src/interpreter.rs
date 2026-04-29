@@ -1,4 +1,4 @@
-﻿use crate::ir::Function;
+use crate::ir::Function;
 use std::collections::HashMap;
 use std::process::Command;
 use std::io::Write;
