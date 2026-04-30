@@ -1,0 +1,5 @@
+PL/I: PROC OPTIONS(MAIN);
+    DCL X FIXED BIN(31);
+    X = 5;
+    PUT SKIP LIST(X);
+END;
