@@ -1,15 +1,18 @@
-﻿use crate::ir::{Function, Statement, Source, Literal, Condition};
+﻿use crate::ir::{Function, Statement, Source, Literal, FileMode};
 use std::fmt::Write;
+
+
 
 pub fn translate(function: &Function) -> String {
     let mut out = String::new();
-    writeln!(out, "fn {}() {{", function.name).unwrap();
+    writeln!(out, "fn translated_func() -> Result<(), Box<dyn std::error::Error>> {{").unwrap();
     if function.body.is_empty() {
-        writeln!(out, "    // nothing").unwrap();
+        writeln!(out, "    Ok(())").unwrap();
     } else {
         for stmt in &function.body {
             translate_statement(stmt, &mut out, "    ");
         }
+        writeln!(out, "    Ok(())").unwrap();
     }
     writeln!(out, "}}").unwrap();
     out
@@ -55,16 +58,40 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::Display { value } => {
             let expr = match value {
                 Literal::Int(i) => i.to_string(),
-                Literal::String(s) => s.clone(),
+                Literal::String(s) => format!("{:?}", s),
             };
-            writeln!(out, "{}println!(\"{}\", {});", indent, expr, expr).unwrap();
+            writeln!(out, "{}println!(\"{}\");", indent, expr).unwrap();
         }
-        Statement::Evaluate { .. } => {}
-        Statement::OpenFile { .. } => {}
-        Statement::ReadFile { .. } => {}
-        Statement::WriteFile { .. } => {}
-        Statement::CloseFile { .. } => {}
-        Statement::String { .. } => {}
-Statement::Unstring { .. } => {}
+        Statement::Evaluate { .. } => {
+            writeln!(out, "{}// EVALUATE not implemented in Rust translator", indent).unwrap();
+        }
+        Statement::OpenFile { mode, name } => {
+            let mode_str = match mode {
+                FileMode::Input => "std::fs::File::open",
+                FileMode::Output => "std::fs::File::create",
+                FileMode::IO => "std::fs::OpenOptions::new().read(true).write(true).open",
+            };
+            writeln!(out, "{}{} = {}?;", indent, name, mode_str).unwrap();
+        }
+        Statement::ReadFile { file, into } => {
+            if let Some(into) = into {
+                writeln!(out, "{}let mut buffer = String::new();", indent).unwrap();
+                writeln!(out, "{}{}.read_to_string(&mut buffer)?;", indent, file).unwrap();
+                writeln!(out, "{}{} = buffer;", indent, into).unwrap();
+            } else {
+                writeln!(out, "{}{}.read_to_string(&mut String::new())?;", indent, file).unwrap();
+            }
+        }
+        Statement::WriteFile { file, from } => {
+            if let Some(from) = from {
+                writeln!(out, "{}{}.write_all({}.as_bytes())?;", indent, file, from).unwrap();
+            } else {
+                writeln!(out, "{}{}.write_all(b\"\")?;", indent, file).unwrap();
+            }
+        }
+        Statement::CloseFile { name } => {
+            writeln!(out, "{}{}.sync_all()?;", indent, name).unwrap();
+        }
+        _ => {}
     }
 }
