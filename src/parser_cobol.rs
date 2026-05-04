@@ -58,8 +58,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 // Parse IF condition THEN ... ELSE ... END-IF
                 // This implementation assumes that the IF statement spans multiple lines.
                 // We'll collect the condition, then the entire block until END-IF.
-                let condition_str = line[2..].trim();
-                let condition = parse_condition_str(condition_str)?;
+                let condition_str = line[2..].trim();; let condition_str = condition_str.trim_end_matches(" then").trim_end_matches(" THEN"); let condition = parse_condition_str(condition_str)?;
                 i += 1;
                 let mut then_branch = Vec::new();
                 let mut else_branch = None;
@@ -169,7 +168,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
             _ => {
                 // Possible paragraph name (ends with a period)
                 if line.ends_with('.') && parts.len() == 1 {
-                    // Paragraph label â€“ skip (no statement generated)
+                    // Paragraph label Ã¢â‚¬â€œ skip (no statement generated)
                     i += 1;
                 } else {
                     anyhow::bail!("Unknown statement: {}", line);
