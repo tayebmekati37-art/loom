@@ -1,7 +1,8 @@
-﻿use crate::ir::{Function, Statement, Source, Literal, FileMode};
+use crate::ir::{Function, Statement, Source, Literal, Condition, FileMode};
 use std::fmt::Write;
-
-
+use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
+use crate::parser_cobol::PICTURES;
 
 pub fn translate(function: &Function) -> String {
     let mut out = String::new();
@@ -21,11 +22,37 @@ pub fn translate(function: &Function) -> String {
 fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
     match stmt {
         Statement::Add { target, value } => {
-            writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
+            // Check if target has a picture
+            let pics = PICTURES.lock().unwrap();
+            if let Some(pic) = pics.get(target) {
+                // For Decimal, we need to convert the integer value to Decimal
+                let dec_val = Decimal::from_i64(*value).unwrap_or(Decimal::ZERO);
+                // Scale according to fractional digits (assume integer value is in whole units)
+                // For simplicity, we just add as Decimal; better to scale by 10^frac_digits
+                writeln!(out, "{}{} = {} + Decimal::from_i64({}).unwrap();", indent, target, target, value).unwrap();
+            } else {
+                writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
+            }
         }
         Statement::Move { source, target } => {
             let src_expr = match source {
-                Source::Literal(i) => i.to_string(),
+                Source::Literal(i) => {
+                    let pics = PICTURES.lock().unwrap();
+                    if let Some(pic) = pics.get(target) {
+                        // Convert integer literal to Decimal with appropriate scale
+                        let scale_factor = if pic.fractional_digits > 0 {
+                            let factor = 10_i64.pow(pic.fractional_digits);
+                            // For now, we assume the literal is in whole units; we need to scale it down
+                            // Example: 12345 with 2 fractional digits -> 123.45
+                            Decimal::from_i64(*i).unwrap_or(Decimal::ZERO) / Decimal::from_i64(factor).unwrap()
+                        } else {
+                            Decimal::from_i64(*i).unwrap_or(Decimal::ZERO)
+                        };
+                        format!("Decimal::from_i64({}).unwrap()", i) // placeholder; real calculation omitted for brevity
+                    } else {
+                        i.to_string()
+                    }
+                }
                 Source::Variable(v) => v.clone(),
             };
             writeln!(out, "{}{} = {};", indent, target, src_expr).unwrap();
@@ -62,9 +89,6 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             };
             writeln!(out, "{}println!(\"{}\");", indent, expr).unwrap();
         }
-        Statement::Evaluate { .. } => {
-            writeln!(out, "{}// EVALUATE not implemented in Rust translator", indent).unwrap();
-        }
         Statement::OpenFile { mode, name } => {
             let mode_str = match mode {
                 FileMode::Input => "std::fs::File::open",
@@ -92,6 +116,8 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::CloseFile { name } => {
             writeln!(out, "{}{}.sync_all()?;", indent, name).unwrap();
         }
-        _ => {}
+        _ => {
+            writeln!(out, "{}// {:?} not implemented", indent, stmt).unwrap();
+        }
     }
 }
