@@ -1,4 +1,16 @@
-use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition, FileMode, LiteralOrVariable, StringSource};
+﻿use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition, FileMode, LiteralOrVariable, StringSource};
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+// Global map to store picture information for variables
+pub static PICTURES: Lazy<Mutex<HashMap<String, Picture>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+#[derive(Debug, Clone)]
+pub struct Picture {
+    pub integer_digits: u32,
+    pub fractional_digits: u32,
+}
 
 pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     let input = input.trim_start_matches('\u{feff}');
@@ -6,6 +18,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     let mut statements = Vec::new();
     let mut i = 0;
     let mut in_procedure = false;
+    let mut in_data = false;
 
     while i < lines.len() {
         let line = lines[i].trim();
@@ -15,16 +28,49 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
         }
         let lower = line.to_lowercase();
 
-        if lower.starts_with("procedure division") {
-            in_procedure = true;
+        if lower.starts_with("data division") {
+            in_data = true;
             i += 1;
             continue;
         }
+        if lower.starts_with("procedure division") {
+            in_procedure = true;
+            in_data = false;
+            i += 1;
+            continue;
+        }
+        if lower.starts_with("identification division") || lower.starts_with("environment division") {
+            i += 1;
+            continue;
+        }
+
+        if in_data {
+            // Parse PIC clause
+            if lower.contains(" pic ") || lower.contains(" picture ") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                // Expect something like "01 WS-AMOUNT PIC 9(5)V99."
+                // Find the variable name (second token) and the picture after "PIC"
+                let var_name = if parts.len() >= 2 { parts[1].to_string() } else { continue };
+                let pic_idx = parts.iter().position(|&p| p.to_lowercase() == "pic" || p.to_lowercase() == "picture");
+                if let Some(idx) = pic_idx {
+                    if idx + 1 < parts.len() {
+                        let pic_str = parts[idx + 1].to_lowercase();
+                        let (int_digits, frac_digits) = parse_picture(&pic_str);
+                        let pic = Picture { integer_digits: int_digits, fractional_digits: frac_digits };
+                        PICTURES.lock().unwrap().insert(var_name, pic);
+                    }
+                }
+            }
+            i += 1;
+            continue;
+        }
+
         if !in_procedure {
             i += 1;
             continue;
         }
 
+        // --- PROCEDURE DIVISION parsing (same as before) ---
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.is_empty() {
             i += 1;
@@ -55,10 +101,8 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
             }
             "if" => {
-                // Parse IF condition THEN ... ELSE ... END-IF
-                // This implementation assumes that the IF statement spans multiple lines.
-                // We'll collect the condition, then the entire block until END-IF.
-                let condition_str = line[2..].trim();; let condition_str = condition_str.trim_end_matches(" then").trim_end_matches(" THEN"); let condition = parse_condition_str(condition_str)?;
+                let condition_str = line[2..].trim();
+                let condition = parse_condition_str(condition_str)?;
                 i += 1;
                 let mut then_branch = Vec::new();
                 let mut else_branch = None;
@@ -75,16 +119,14 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                         i += 1;
                         continue;
                     }
-                    if l.is_empty() {
-                        i += 1;
-                        continue;
-                    }
-                    let stmt = parse_single_statement(l)?;
-                    if in_then {
-                        then_branch.push(stmt);
-                    } else {
-                        if let Some(ref mut else_vec) = else_branch {
-                            else_vec.push(stmt);
+                    if !l.is_empty() {
+                        let stmt = parse_single_statement(l)?;
+                        if in_then {
+                            then_branch.push(stmt);
+                        } else {
+                            if let Some(ref mut v) = else_branch {
+                                v.push(stmt);
+                            }
                         }
                     }
                     i += 1;
@@ -166,9 +208,8 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
             }
             _ => {
-                // Possible paragraph name (ends with a period)
+                // Paragraph label
                 if line.ends_with('.') && parts.len() == 1 {
-                    // Paragraph label Ã¢â‚¬â€œ skip (no statement generated)
                     i += 1;
                 } else {
                     anyhow::bail!("Unknown statement: {}", line);
@@ -220,11 +261,12 @@ fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
             }
             Ok(Statement::Perform { name: parts[1].to_string() })
         }
-        _ => anyhow::bail!("Unsupported statement in IF block: {}", line),
+        _ => anyhow::bail!("Unsupported statement in block: {}", line),
     }
 }
 
 fn parse_condition_str(s: &str) -> Result<Condition, anyhow::Error> {
+    let s = s.trim_end_matches(" then").trim_end_matches(" THEN");
     let parts: Vec<&str> = s.split_whitespace().collect();
     if parts.len() != 3 {
         anyhow::bail!("Invalid condition: {}", s);
@@ -233,4 +275,30 @@ fn parse_condition_str(s: &str) -> Result<Condition, anyhow::Error> {
     let operator = parts[1].to_string();
     let right = parts[2].parse::<i64>()?;
     Ok(Condition { left, operator, right })
+}
+
+fn parse_picture(pic: &str) -> (u32, u32) {
+    // Simple parser: e.g., "9(5)v99" -> 5 integer, 2 fractional
+    let pic = pic.trim_end_matches('.');
+    let mut int_digits = 0;
+    let mut frac_digits = 0;
+    if let Some(v_pos) = pic.find('v') {
+        let int_part = &pic[..v_pos];
+        let frac_part = &pic[v_pos+1..];
+        int_digits = parse_digit_count(int_part);
+        frac_digits = parse_digit_count(frac_part);
+    } else {
+        int_digits = parse_digit_count(pic);
+    }
+    (int_digits, frac_digits)
+}
+
+fn parse_digit_count(s: &str) -> u32 {
+    if s.contains('(') {
+        let start = s.find('(').unwrap() + 1;
+        let end = s.find(')').unwrap();
+        s[start..end].parse().unwrap_or(0)
+    } else {
+        s.len() as u32
+    }
 }
