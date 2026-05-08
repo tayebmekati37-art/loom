@@ -23,7 +23,7 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::Move { source, target } => {
             let src_expr = match source {
                 Source::Literal(i) => i.to_string(),
-                Source::Variable(v) => v.clone(),
+                Source::Variable(v) => v.clone(), Source::LiteralString(s) => s.clone(),
             };
             writeln!(out, "{}{} = {}", indent, target, src_expr).unwrap();
         }

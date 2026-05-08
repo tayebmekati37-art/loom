@@ -20,21 +20,12 @@ pub enum Statement {
         also_subject: Option<String>,
         when_clauses: Vec<WhenClause>,
     },
+    String { sources: Vec<StringSource>, into: String, pointer: Option<String> },
+    Unstring { source: String, delimited_by: Option<LiteralOrVariable>, into: Vec<String>, pointer: Option<String> },
     OpenFile { mode: FileMode, name: String },
     ReadFile { file: String, into: Option<String> },
     WriteFile { file: String, from: Option<String> },
     CloseFile { name: String },
-    String {
-        sources: Vec<StringSource>,
-        into: String,
-        pointer: Option<String>,
-    },
-    Unstring {
-        source: String,
-        delimited_by: Option<LiteralOrVariable>,
-        into: Vec<String>,
-        pointer: Option<String>,
-    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +43,7 @@ pub enum WhenCondition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Source {
     Literal(i64),
+    LiteralString(String),
     Variable(String),
 }
 
@@ -91,10 +83,4 @@ pub struct StringSource {
 pub enum LiteralOrVariable {
     Literal(Literal),
     Variable(String),
-    
-    
-
-    
 }
-    
-    

@@ -1,0 +1,15 @@
+       IDENTIFICATION DIVISION.
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01 CUSTOMER-REC.
+          05 CUST-ID    PIC 9(5).
+          05 CUST-NAME  PIC X(30).
+       01 WS-AMOUNT     PIC 9(5)V99.
+       PROCEDURE DIVISION.
+           MOVE 12345 TO CUST-ID
+           MOVE 'John Doe' TO CUST-NAME
+           MOVE 12345 TO WS-AMOUNT
+           ADD 50 TO WS-AMOUNT
+           DISPLAY CUST-ID
+           DISPLAY CUST-NAME
+           DISPLAY WS-AMOUNT.

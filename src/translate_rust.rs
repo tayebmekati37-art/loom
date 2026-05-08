@@ -1,10 +1,31 @@
 use crate::ir::{Function, Statement, Source, Literal, Condition, FileMode};
 use std::fmt::Write;
 use rust_decimal::Decimal;
-use crate::parser_cobol::PICTURES;
+use crate::parser_cobol::{PICTURES, RECORDS};
 
 pub fn translate(function: &Function) -> String {
     let mut out = String::new();
+    // Generate Rust structs for records
+    let records = RECORDS.lock().unwrap();
+    for (_, record) in records.iter() {
+        writeln!(out, "#[derive(Debug)]").unwrap();
+        writeln!(out, "struct {} {{", record.name).unwrap();
+        for field in &record.fields {
+            // Map COBOL picture to Rust type
+            let rust_type = if let Some(pic) = &field.picture {
+                if pic.to_lowercase().contains('x') {
+                    "String".to_string()
+                } else {
+                    // For simplicity, use Decimal for all numeric pictures
+                    "Decimal".to_string()
+                }
+            } else {
+                "String".to_string()
+            };
+            writeln!(out, "    {}: {},", field.name, rust_type).unwrap();
+        }
+        writeln!(out, "}}\n").unwrap();
+    }
     writeln!(out, "fn translated_func() -> Result<(), Box<dyn std::error::Error>> {{").unwrap();
     if function.body.is_empty() {
         writeln!(out, "    Ok(())").unwrap();
@@ -23,8 +44,6 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::Add { target, value } => {
             let pics = PICTURES.lock().unwrap();
             if let Some(pic) = pics.get(target) {
-                // Scale the integer value to Decimal with same fractional digits
-                let dec_val = Decimal::new(*value, pic.fractional_digits);
                 writeln!(out, "{}{} = {} + Decimal::new({}, {});", indent, target, target, value, pic.fractional_digits).unwrap();
             } else {
                 writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
@@ -32,16 +51,10 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         }
         Statement::Move { source, target } => {
             let src_expr = match source {
-                Source::Literal(i) => {
-                    let pics = PICTURES.lock().unwrap();
-                    if let Some(pic) = pics.get(target) {
-                        format!("Decimal::new({}, {})", i, pic.fractional_digits)
-                    } else {
-                        i.to_string()
-                    }
-                }
-                Source::Variable(v) => v.clone(),
-            };
+    Source::Literal(i) => i.to_string(),
+    Source::LiteralString(s) => format!("{:?}", s),
+    Source::Variable(v) => v.clone(),
+};
             writeln!(out, "{}{} = {};", indent, target, src_expr).unwrap();
         }
         Statement::If { condition, then_branch, else_branch } => {
@@ -75,11 +88,9 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                     writeln!(out, "{}println!(\"{}\");", indent, i).unwrap();
                 }
                 Literal::String(s) => {
-                    // If the string looks like a variable name (no quotes), treat as variable
                     if !s.starts_with('\'') {
                         writeln!(out, "{}println!(\"{}\", {});", indent, "{}", s).unwrap();
                     } else {
-                        // Quoted string literal
                         writeln!(out, "{}println!(\"{}\");", indent, s.trim_matches('\'')).unwrap();
                     }
                 }
