@@ -120,17 +120,20 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
         }
 
         match parts[0].to_lowercase().as_str() {
-            "move" => {
-                if parts.len() < 4 || parts[2].to_lowercase() != "to" {
-                    anyhow::bail!("Invalid MOVE: {}", line);
-                }
-                let source = if let Ok(num) = parts[1].parse::<i64>() {
+                        "move" => {
+                // Find the index of "to"
+                let to_idx = parts.iter().position(|&p| p.to_lowercase() == "to").ok_or_else(|| anyhow::anyhow!("Missing TO in MOVE: {}", line))?;
+                // Combine source tokens from index 1 up to to_idx-1
+                let source_token = parts[1..to_idx].join(" ");
+                let target_token = parts[to_idx+1..].join(" ");
+                let source = if let Ok(num) = source_token.parse::<i64>() {
                     Source::Literal(num)
+                } else if source_token.starts_with('\'') && source_token.ends_with('\'') {
+                    Source::LiteralString(source_token[1..source_token.len()-1].to_string())
                 } else {
-                    Source::Variable(parts[1].to_string())
+                    Source::Variable(source_token)
                 };
-                let target = parts[3].to_string();
-                statements.push(Statement::Move { source, target });
+                statements.push(Statement::Move { source, target: target_token });
                 i += 1;
             }
             "add" => {

@@ -1,4 +1,4 @@
-use crate::ir::Function;
+﻿use crate::ir::Function;
 use std::collections::HashMap;
 use std::process::Command;
 use std::io::Write;
@@ -97,7 +97,7 @@ impl Interpreter {
             crate::ir::Statement::Move { source, target } => {
                 let src_value = match source {
                     crate::ir::Source::Literal(i) => *i,
-                    crate::ir::Source::Variable(v) => *self.vars.get(v).unwrap_or(&0),
+                    crate::ir::Source::Variable(v) => *self.vars.get(v).unwrap_or(&0), crate::ir::Source::LiteralString(s) => 0, // string literal ignored
                 };
                 self.vars.insert(target.clone(), src_value);
             }
