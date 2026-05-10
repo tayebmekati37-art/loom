@@ -1,6 +1,8 @@
-EVALUATE X
-    WHEN 1
-        DISPLAY 'ONE'
-    WHEN 2
-        DISPLAY 'TWO'
-END-EVALUATE
+       IDENTIFICATION DIVISION.
+       PROCEDURE DIVISION.
+           EVALUATE X
+               WHEN 1
+                   DISPLAY 'ONE'
+               WHEN 2
+                   DISPLAY 'TWO'
+           END-EVALUATE.
