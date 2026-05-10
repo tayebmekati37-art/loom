@@ -1,9 +1,9 @@
-﻿use crate::ir::{Function, Statement, Source, Literal, Condition};
+use crate::ir::{Function, Statement, Source, Literal, Condition};
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
     let mut out = String::new();
-    writeln!(out, "fun {}() {{", function.name).unwrap();
+    writeln!(out, "fun translated_func() {").unwrap();
     if function.body.is_empty() {
         writeln!(out, "    // nothing").unwrap();
     } else {
@@ -11,21 +11,21 @@ pub fn translate(function: &Function) -> String {
             translate_statement(stmt, &mut out, "    ");
         }
     }
-    writeln!(out, "}}").unwrap();
+    writeln!(out, "}").unwrap();
     out
 }
 
 fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
     match stmt {
         Statement::Add { target, value } => {
-            writeln!(out, "{}{} = {} + {}", indent, target, target, value).unwrap();
+            writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
         }
         Statement::Move { source, target } => {
             let src_expr = match source {
                 Source::Literal(i) => i.to_string(),
-                Source::Variable(v) => v.clone(), Source::LiteralString(s) => s.clone(),
+                Source::Variable(v) => v.clone(),
             };
-            writeln!(out, "{}{} = {}", indent, target, src_expr).unwrap();
+            writeln!(out, "{}{} = {};", indent, target, src_expr).unwrap();
         }
         Statement::If { condition, then_branch, else_branch } => {
             let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
@@ -42,7 +42,7 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             writeln!(out, "{}}}", indent).unwrap();
         }
         Statement::Perform { name } => {
-            writeln!(out, "{}{}()", indent, name).unwrap();
+            writeln!(out, "{}{}();", indent, name).unwrap();
         }
         Statement::While { condition, body } => {
             let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
@@ -55,16 +55,17 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::Display { value } => {
             let expr = match value {
                 Literal::Int(i) => i.to_string(),
-                Literal::String(s) => s.clone(),
+                Literal::String(s) => format!("'{}'", s),
             };
-            writeln!(out, "{}println({})", indent, expr).unwrap();
+            writeln!(out, "{}println({});", indent, expr).unwrap();
         }
+        // Ignore advanced statements
         Statement::Evaluate { .. } => {}
-        Statement::OpenFile { .. } => {}
-        Statement::ReadFile { .. } => {}
-        Statement::WriteFile { .. } => {}
-        Statement::CloseFile { .. } => {}
         Statement::String { .. } => {}
         Statement::Unstring { .. } => {}
+        Statement::Redefines { .. } => {}
+        Statement::Occurs { .. } => {}
+        Statement::ConditionName { .. } => {}
+        _ => {}
     }
 }

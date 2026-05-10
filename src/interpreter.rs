@@ -1,4 +1,4 @@
-﻿use crate::ir::Function;
+use crate::ir::Function;
 use std::collections::HashMap;
 use std::process::Command;
 use std::io::Write;
@@ -160,5 +160,4 @@ impl Interpreter {
             "=" => left_val == cond.right,
             _ => false,
         }
-    }
-}
+    }            Statement::Redefines { .. } => {},\n            Statement::Occurs { .. } => {},\n            Statement::ConditionName { .. } => {},\n

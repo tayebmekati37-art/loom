@@ -302,7 +302,9 @@ fn generate_test_cases(func: &ir::Function) -> anyhow::Result<Vec<HashMap<String
 fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSet<String>) {
     for stmt in stmts {
         match stmt {
-            ir::Statement::Add { target, .. } => { set.insert(target.clone()); }
+            ir::Statement::Add { target, .. } => {
+                set.insert(target.clone());
+            }
             ir::Statement::Move { source, target } => {
                 set.insert(target.clone());
                 if let ir::Source::Variable(v) = source {
@@ -352,6 +354,16 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
             ir::Statement::ReadFile { .. } => {}
             ir::Statement::WriteFile { .. } => {}
             ir::Statement::CloseFile { .. } => {}
+            ir::Statement::Redefines { name, redefines } => {
+                set.insert(name.clone());
+                set.insert(redefines.clone());
+            }
+            ir::Statement::Occurs { name, .. } => {
+                set.insert(name.clone());
+            }
+            ir::Statement::ConditionName { name, .. } => {
+                set.insert(name.clone());
+            }
         }
     }
 }

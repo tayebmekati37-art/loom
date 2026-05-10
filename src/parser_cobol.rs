@@ -1,4 +1,4 @@
-﻿use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition, FileMode, LiteralOrVariable, StringSource};
+use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition, FileMode, LiteralOrVariable, StringSource};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Mutex;

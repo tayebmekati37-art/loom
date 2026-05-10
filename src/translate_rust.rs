@@ -1,31 +1,10 @@
-use crate::ir::{Function, Statement, Source, Literal, Condition, FileMode};
+use crate::ir::{Function, Statement, Source, Literal, Condition, FileMode, WhenClause, WhenCondition, LiteralOrVariable, StringSource};
 use std::fmt::Write;
 use rust_decimal::Decimal;
-use crate::parser_cobol::{PICTURES, RECORDS};
+use crate::parser_cobol::PICTURES;
 
 pub fn translate(function: &Function) -> String {
     let mut out = String::new();
-    // Generate Rust structs for records
-    let records = RECORDS.lock().unwrap();
-    for (_, record) in records.iter() {
-        writeln!(out, "#[derive(Debug)]").unwrap();
-        writeln!(out, "struct {} {{", record.name).unwrap();
-        for field in &record.fields {
-            // Map COBOL picture to Rust type
-            let rust_type = if let Some(pic) = &field.picture {
-                if pic.to_lowercase().contains('x') {
-                    "String".to_string()
-                } else {
-                    // For simplicity, use Decimal for all numeric pictures
-                    "Decimal".to_string()
-                }
-            } else {
-                "String".to_string()
-            };
-            writeln!(out, "    {}: {},", field.name, rust_type).unwrap();
-        }
-        writeln!(out, "}}\n").unwrap();
-    }
     writeln!(out, "fn translated_func() -> Result<(), Box<dyn std::error::Error>> {{").unwrap();
     if function.body.is_empty() {
         writeln!(out, "    Ok(())").unwrap();
@@ -51,10 +30,17 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         }
         Statement::Move { source, target } => {
             let src_expr = match source {
-    Source::Literal(i) => i.to_string(),
-    Source::LiteralString(s) => format!("{:?}", s),
-    Source::Variable(v) => v.clone(),
-};
+                Source::Literal(i) => {
+                    let pics = PICTURES.lock().unwrap();
+                    if let Some(pic) = pics.get(target) {
+                        format!("Decimal::new({}, {})", i, pic.fractional_digits)
+                    } else {
+                        i.to_string()
+                    }
+                }
+                Source::LiteralString(s) => format!("{:?}.to_string()", s),
+                Source::Variable(v) => v.clone(),
+            };
             writeln!(out, "{}{} = {};", indent, target, src_expr).unwrap();
         }
         Statement::If { condition, then_branch, else_branch } => {
@@ -84,16 +70,8 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         }
         Statement::Display { value } => {
             match value {
-                Literal::Int(i) => {
-                    writeln!(out, "{}println!(\"{}\");", indent, i).unwrap();
-                }
-                Literal::String(s) => {
-                    if !s.starts_with('\'') {
-                        writeln!(out, "{}println!(\"{}\", {});", indent, "{}", s).unwrap();
-                    } else {
-                        writeln!(out, "{}println!(\"{}\");", indent, s.trim_matches('\'')).unwrap();
-                    }
-                }
+                Literal::Int(i) => writeln!(out, "{}println!(\"{}\");", indent, i).unwrap(),
+                Literal::String(s) => writeln!(out, "{}println!(\"{}\");", indent, s).unwrap(),
             }
         }
         Statement::OpenFile { mode, name } => {
@@ -123,8 +101,88 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::CloseFile { name } => {
             writeln!(out, "{}{}.sync_all()?;", indent, name).unwrap();
         }
-        _ => {
-            writeln!(out, "{}// {:?} not implemented", indent, stmt).unwrap();
+        Statement::Evaluate { subject, also_subject, when_clauses } => {
+            writeln!(out, "{}match {} {{", indent, subject).unwrap();
+            for when in when_clauses {
+                let cond_str = match &when.condition {
+                    WhenCondition::Literal(lit) => match lit {
+                        Literal::Int(i) => i.to_string(),
+                        Literal::String(s) => s.clone(),
+                    },
+                    WhenCondition::Variable(v) => v.clone(),
+                };
+                writeln!(out, "{}    {} => {{", indent, cond_str).unwrap();
+                for stmt in &when.body {
+                    translate_statement(stmt, out, &format!("{}        ", indent));
+                }
+                writeln!(out, "{}}}", indent).unwrap();
+            }
+            if let Some(also) = also_subject {
+                writeln!(out, "{}    // also subject {} not supported", indent, also).unwrap();
+            }
+            writeln!(out, "{}}}", indent).unwrap();
         }
+        Statement::String { sources, into, pointer } => {
+            let mut parts = Vec::new();
+            for src in sources {
+                let src_str = match &src.source {
+                    LiteralOrVariable::Literal(lit) => match lit {
+                        Literal::Int(i) => i.to_string(),
+                        Literal::String(s) => format!("{:?}", s),
+                    },
+                    LiteralOrVariable::Variable(v) => v.clone(),
+                };
+                parts.push(src_str);
+            }
+            let joined = parts.join(" + ");
+            writeln!(out, "{}{} = {};", indent, into, joined).unwrap();
+            if let Some(ptr) = pointer {
+                writeln!(out, "{}// pointer {} not implemented", indent, ptr).unwrap();
+            }
+        }
+                Statement::Unstring { source, delimited_by, into, pointer } => {
+            let delim = match delimited_by {
+                Some(d) => match *d {
+                    LiteralOrVariable::Literal(lit) => match lit {
+                        Literal::Int(i) => i.to_string(),
+                        Literal::String(s) => s,
+                    },
+                    LiteralOrVariable::Variable(v) => v,
+                },
+                None => " ".to_string(),
+            };
+            for (i, var) in into.iter().enumerate() {
+                writeln!(out, "{}{} = {}.split('{}').nth({}).unwrap_or(\"\").to_string();", indent, var, source, delim, i).unwrap();
+            }
+            if let Some(ptr) = pointer {
+                writeln!(out, "{}// pointer {} not implemented", indent, ptr).unwrap();
+            }
+        },
+                    LiteralOrVariable::Variable(v) => v,
+                },
+                None => " ".to_string(),
+            };
+            for (i, var) in into.iter().enumerate() {
+                writeln!(out, "{}{} = {}.split('{}').nth({}).unwrap_or(\"\").to_string();", indent, var, source, delim, i).unwrap();
+            }
+            if let Some(ptr) = pointer {
+                writeln!(out, "{}// pointer {} not implemented", indent, ptr).unwrap();
+            
+        
+         => {
+            writeln!(out, "{}// REDEFINES {} {} not implemented", indent, name, redefines).unwrap();
+        }
+         => {
+            writeln!(out, "{}let mut {} = vec![0; {}];", indent, name, count).unwrap();
+        }
+         => {
+            let val_str = match value {
+                Literal::Int(i) => i.to_string(),
+                Literal::String(s) => format!("{:?}", s),
+            };
+            writeln!(out, "{}const {}: &str = {};", indent, name, val_str).unwrap();
+        }
+        _ => {}
     }
-}
+        Statement::Redefines { .. } => {},\n        Statement::Occurs { .. } => {},\n        Statement::ConditionName { .. } => {},\n  
+  
