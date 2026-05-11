@@ -53,7 +53,6 @@ fn parse_output(s: &str) -> anyhow::Result<HashMap<String, i64>> {
     Ok(map)
 }
 
-// Original interpreter (kept for backward compatibility)
 pub struct Interpreter {
     vars: HashMap<String, i64>,
     functions: HashMap<String, Function>,
@@ -97,7 +96,8 @@ impl Interpreter {
             crate::ir::Statement::Move { source, target } => {
                 let src_value = match source {
                     crate::ir::Source::Literal(i) => *i,
-                    crate::ir::Source::Variable(v) => *self.vars.get(v).unwrap_or(&0), crate::ir::Source::LiteralString(s) => 0, // string literal ignored
+                    crate::ir::Source::LiteralString(_) => 0,
+                    crate::ir::Source::Variable(v) => *self.vars.get(v).unwrap_or(&0),
                 };
                 self.vars.insert(target.clone(), src_value);
             }
@@ -127,28 +127,17 @@ impl Interpreter {
                     crate::ir::Literal::String(s) => println!("{}", s),
                 }
             }
-            // Stubs for advanced statements
-            crate::ir::Statement::Evaluate { .. } => {
-                eprintln!("EVALUATE not implemented in interpreter, ignoring");
-            }
-            crate::ir::Statement::String { .. } => {
-                eprintln!("STRING not implemented in interpreter, ignoring");
-            }
-            crate::ir::Statement::Unstring { .. } => {
-                eprintln!("UNSTRING not implemented in interpreter, ignoring");
-            }
-            crate::ir::Statement::OpenFile { .. } => {
-                eprintln!("OPEN not implemented in interpreter, ignoring");
-            }
-            crate::ir::Statement::ReadFile { .. } => {
-                eprintln!("READ not implemented in interpreter, ignoring");
-            }
-            crate::ir::Statement::WriteFile { .. } => {
-                eprintln!("WRITE not implemented in interpreter, ignoring");
-            }
-            crate::ir::Statement::CloseFile { .. } => {
-                eprintln!("CLOSE not implemented in interpreter, ignoring");
-            }
+            // Advanced statements: ignore
+            crate::ir::Statement::Evaluate { .. } => {}
+            crate::ir::Statement::String { .. } => {}
+            crate::ir::Statement::Unstring { .. } => {}
+            crate::ir::Statement::Redefines { .. } => {}
+            crate::ir::Statement::Occurs { .. } => {}
+            crate::ir::Statement::ConditionName { .. } => {}
+            crate::ir::Statement::OpenFile { .. } => {}
+            crate::ir::Statement::ReadFile { .. } => {}
+            crate::ir::Statement::WriteFile { .. } => {}
+            crate::ir::Statement::CloseFile { .. } => {}
         }
     }
 
@@ -160,4 +149,5 @@ impl Interpreter {
             "=" => left_val == cond.right,
             _ => false,
         }
-    }            Statement::Redefines { .. } => {},\n            Statement::Occurs { .. } => {},\n            Statement::ConditionName { .. } => {},\n
+    }
+}

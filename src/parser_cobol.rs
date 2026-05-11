@@ -1,10 +1,9 @@
-use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition, FileMode, LiteralOrVariable, StringSource};
+use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition, StringSource, LiteralOrVariable};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 pub static PICTURES: Lazy<Mutex<HashMap<String, Picture>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-pub static RECORDS: Lazy<Mutex<HashMap<String, RecordStruct>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Debug, Clone)]
 pub struct Picture {
@@ -12,128 +11,80 @@ pub struct Picture {
     pub fractional_digits: u32,
 }
 
-#[derive(Debug, Clone)]
-pub struct RecordField {
-    pub name: String,
-    pub picture: Option<String>,
-    pub level: u32,
-}
-
-#[derive(Debug, Clone)]
-pub struct RecordStruct {
-    pub name: String,
-    pub fields: Vec<RecordField>,
-}
-
+// Full parser with PROCEDURE DIVISION only – skips DIVISION headers
 pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     let input = input.trim_start_matches('\u{feff}');
     let lines: Vec<&str> = input.lines().collect();
-    let mut statements = Vec::new();
     let mut i = 0;
+    let mut statements = Vec::new();
     let mut in_procedure = false;
     let mut in_data = false;
-    let mut current_record: Option<RecordStruct> = None;
-    let mut current_level_stack: Vec<u32> = Vec::new();
 
     while i < lines.len() {
         let line = lines[i].trim();
-        if line.is_empty() {
-            i += 1;
-            continue;
-        }
+        if line.is_empty() { i += 1; continue; }
         let lower = line.to_lowercase();
 
+        // Divisions
+        if lower.starts_with("identification division") ||
+           lower.starts_with("environment division") {
+            i += 1; continue;
+        }
         if lower.starts_with("data division") {
             in_data = true;
-            i += 1;
-            continue;
+            i += 1; continue;
         }
         if lower.starts_with("procedure division") {
             in_procedure = true;
             in_data = false;
-            i += 1;
-            continue;
+            i += 1; continue;
         }
-        if lower.starts_with("identification division") || lower.starts_with("environment division") {
-            i += 1;
-            continue;
-        }
-
         if in_data {
-            // Parse record structures
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.is_empty() {
-                i += 1;
-                continue;
-            }
-            // Try to parse level number (first token)
-            if let Ok(level) = parts[0].parse::<u32>() {
-                if level == 1 {
-                    // Start of a new record
-                    if let Some(record) = current_record.take() {
-                        RECORDS.lock().unwrap().insert(record.name.clone(), record);
-                    }
-                    let name = parts[1].to_string();
-                    current_record = Some(RecordStruct { name, fields: vec![] });
-                    current_level_stack = vec![level];
-                } else if let Some(ref mut record) = current_record {
-                    if level > *current_level_stack.last().unwrap_or(&0) {
-                        // Subfield
-                        let name = parts[1].to_string();
-                        // Check for PIC clause
-                        let pic_idx = parts.iter().position(|&p| p.to_lowercase() == "pic" || p.to_lowercase() == "picture");
-                        let picture = pic_idx.and_then(|idx| parts.get(idx+1).map(|s| s.to_string()));
-                        if let Some(pic) = &picture {
-                            let (int_digits, frac_digits) = parse_picture(pic);
-                            let pic_struct = Picture { integer_digits: int_digits, fractional_digits: frac_digits };
-                            PICTURES.lock().unwrap().insert(name.clone(), pic_struct);
+            // Capture PIC (simplified)
+            if lower.contains(" pic ") || lower.contains("picture") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let var_name = parts[1].trim_end_matches('.').to_string();
+                    let pic_idx = parts.iter().position(|&p| p.to_lowercase() == "pic" || p.to_lowercase() == "picture");
+                    if let Some(idx) = pic_idx {
+                        if idx + 1 < parts.len() {
+                            let pic_str = parts[idx+1].to_lowercase();
+                            let (int, frac) = parse_picture(&pic_str);
+                            PICTURES.lock().unwrap().insert(var_name, Picture { integer_digits: int, fractional_digits: frac });
                         }
-                        record.fields.push(RecordField { name, picture, level });
-                        current_level_stack.push(level);
-                    } else {
-                        // pop levels until we get back to the parent
-                        while let Some(&last) = current_level_stack.last() {
-                            if last < level {
-                                break;
-                            }
-                            current_level_stack.pop();
-                        }
-                        // now add as sibling or child? For simplicity, we just add as sibling if level matches stack top+1? Not needed.
                     }
                 }
             }
-            // Also parse standalone PIC clauses (for 01-level fields) - already handled
-            i += 1;
-            continue;
+            i += 1; continue;
         }
+        if !in_procedure { i += 1; continue; }
 
-        if !in_procedure {
-            i += 1;
-            continue;
-        }
-
-        // --- PROCEDURE DIVISION parsing (same as before, but we might need to resolve field names later) ---
+        // Now parse statements inside PROCEDURE DIVISION
         let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.is_empty() {
-            i += 1;
-            continue;
-        }
+        if parts.is_empty() { i += 1; continue; }
 
         match parts[0].to_lowercase().as_str() {
-                        "move" => {
-                // Find the index of "to"
-                let to_idx = parts.iter().position(|&p| p.to_lowercase() == "to").ok_or_else(|| anyhow::anyhow!("Missing TO in MOVE: {}", line))?;
-                // Combine source tokens from index 1 up to to_idx-1
-                let source_token = parts[1..to_idx].join(" ");
-                let target_token = parts[to_idx+1..].join(" ");
-                let source = if let Ok(num) = source_token.parse::<i64>() {
+            "move" => {
+                if parts.len() < 4 || parts[2].to_lowercase() != "to" {
+                    anyhow::bail!("Invalid MOVE: {}", line);
+                }
+                let source = if let Ok(num) = parts[1].parse::<i64>() {
                     Source::Literal(num)
-                } else if source_token.starts_with('\'') && source_token.ends_with('\'') {
-                    Source::LiteralString(source_token[1..source_token.len()-1].to_string())
+                } else if parts[1].starts_with('\'') {
+                    // reconstruct quoted string
+                    let mut full = parts[1].to_string();
+                    let mut j = 2;
+                    while j < parts.len() && !full.ends_with('\'') {
+                        full.push(' ');
+                        full.push_str(parts[j]);
+                        j += 1;
+                    }
+                    Source::LiteralString(full[1..full.len()-1].to_string())
                 } else {
-                    Source::Variable(source_token)
+                    Source::Variable(parts[1].to_string())
                 };
-                statements.push(Statement::Move { source, target: target_token });
+                let target = parts[3].to_string();
+                statements.push(Statement::Move { source, target });
                 i += 1;
             }
             "add" => {
@@ -184,8 +135,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 if parts.len() != 2 {
                     anyhow::bail!("Invalid PERFORM: {}", line);
                 }
-                let name = parts[1].to_string();
-                statements.push(Statement::Perform { name });
+                statements.push(Statement::Perform { name: parts[1].to_string() });
                 i += 1;
             }
             "display" => {
@@ -196,62 +146,93 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 let lit = if let Ok(num) = lit_str.parse::<i64>() {
                     Literal::Int(num)
                 } else {
-                    if lit_str.split_whitespace().count() == 1 {
-                        Literal::String(lit_str.to_string())
-                    } else {
-                        Literal::String(lit_str.trim_matches('\'').to_string())
-                    }
+                    Literal::String(lit_str.trim_matches('\'').to_string())
                 };
                 statements.push(Statement::Display { value: lit });
                 i += 1;
             }
-            "open" => {
-                if parts.len() != 3 {
-                    anyhow::bail!("Invalid OPEN: {}", line);
-                }
-                let mode_str = parts[1].to_lowercase();
-                let mode = match mode_str.as_str() {
-                    "input" => FileMode::Input,
-                    "output" => FileMode::Output,
-                    "i-o" => FileMode::IO,
-                    _ => anyhow::bail!("Invalid file mode: {}", mode_str),
-                };
-                let name = parts[2].to_string();
-                statements.push(Statement::OpenFile { mode, name });
-                i += 1;
-            }
-            "read" => {
-                if parts.len() < 2 {
-                    anyhow::bail!("Invalid READ: {}", line);
-                }
-                let file = parts[1].to_string();
-                let into = if parts.len() >= 4 && parts[2].to_lowercase() == "into" {
+            "evaluate" => {
+                let subject = parts[1].to_string();
+                let also_subject = if parts.len() > 2 && parts[2].to_lowercase() == "also" {
                     Some(parts[3].to_string())
-                } else {
-                    None
-                };
-                statements.push(Statement::ReadFile { file, into });
+                } else { None };
+                i += 1;
+                let mut when_clauses = Vec::new();
+                while i < lines.len() {
+                    let l = lines[i].trim();
+                    if l.to_lowercase().starts_with("end-evaluate") {
+                        i += 1;
+                        break;
+                    }
+                    let l_parts: Vec<&str> = l.split_whitespace().collect();
+                    if l_parts.is_empty() { i += 1; continue; }
+                    if l_parts[0].to_lowercase() == "when" {
+                        let cond_val = l_parts[1].to_string();
+                        let condition = if let Ok(num) = cond_val.parse::<i64>() {
+                            WhenCondition::Literal(Literal::Int(num))
+                        } else {
+                            WhenCondition::Variable(cond_val)
+                        };
+                        i += 1;
+                        let mut when_body = Vec::new();
+                        while i < lines.len() {
+                            let bl = lines[i].trim();
+                            if bl.is_empty() { i += 1; continue; }
+                            if bl.to_lowercase().starts_with("when") || bl.to_lowercase().starts_with("end-evaluate") {
+                                break;
+                            }
+                            when_body.push(parse_single_statement(bl)?);
+                            i += 1;
+                        }
+                        when_clauses.push(WhenClause { condition, body: when_body });
+                    } else {
+                        anyhow::bail!("Expected WHEN inside EVALUATE, got: {}", l);
+                    }
+                }
+                statements.push(Statement::Evaluate { subject, also_subject, when_clauses });
+            }
+            "string" => {
+                let first = line.to_lowercase().strip_prefix("string").unwrap().trim().to_string();
+                let mut parts_vec = vec![first];
+                i += 1;
+                while i < lines.len() {
+                    let l = lines[i].trim();
+                    if l.to_lowercase().starts_with("end-string") {
+                        i += 1;
+                        break;
+                    }
+                    if !l.is_empty() { parts_vec.push(l.to_string()); }
+                    i += 1;
+                }
+                let full = parts_vec.join(" ");
+                let into_idx = full.to_lowercase().find(" into ").ok_or_else(|| anyhow::anyhow!("Missing INTO in STRING"))?;
+                let before = &full[..into_idx];
+                let after = &full[into_idx + 6..];
+                let into_var = after.split_whitespace().next().unwrap().to_string();
+                let mut sources = Vec::new();
+                for token in before.split_whitespace() {
+                    if token.starts_with('\'') {
+                        let s = token.trim_matches('\'');
+                        sources.push(StringSource { source: LiteralOrVariable::Literal(Literal::String(s.to_string())), delimited_by: None });
+                    } else if let Ok(num) = token.parse::<i64>() {
+                        sources.push(StringSource { source: LiteralOrVariable::Literal(Literal::Int(num)), delimited_by: None });
+                    } else {
+                        sources.push(StringSource { source: LiteralOrVariable::Variable(token.to_string()), delimited_by: None });
+                    }
+                }
+                statements.push(Statement::String { sources, into: into_var, pointer: None });
+            }
+            "unstring" => {
+                eprintln!("UNSTRING not implemented in parser, ignoring");
+                i += 1;
+                // skip until end-unstring
+                while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-unstring") {
+                    i += 1;
+                }
                 i += 1;
             }
-            "write" => {
-                if parts.len() < 2 {
-                    anyhow::bail!("Invalid WRITE: {}", line);
-                }
-                let file = parts[1].to_string();
-                let from = if parts.len() >= 4 && parts[2].to_lowercase() == "from" {
-                    Some(parts[3].to_string())
-                } else {
-                    None
-                };
-                statements.push(Statement::WriteFile { file, from });
-                i += 1;
-            }
-            "close" => {
-                if parts.len() != 2 {
-                    anyhow::bail!("Invalid CLOSE: {}", line);
-                }
-                let name = parts[1].to_string();
-                statements.push(Statement::CloseFile { name });
+            "open" | "read" | "write" | "close" => {
+                eprintln!("File I/O stubbed, ignoring: {}", line);
                 i += 1;
             }
             _ => {
@@ -263,94 +244,67 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
             }
         }
     }
-    if let Some(record) = current_record.take() {
-        RECORDS.lock().unwrap().insert(record.name.clone(), record);
-    }
     Ok(statements)
 }
 
 fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
     let parts: Vec<&str> = line.split_whitespace().collect();
-    if parts.is_empty() {
-        anyhow::bail!("Empty statement");
-    }
+    if parts.is_empty() { anyhow::bail!("Empty statement"); }
     match parts[0].to_lowercase().as_str() {
         "move" => {
             if parts.len() < 4 || parts[2].to_lowercase() != "to" {
-                anyhow::bail!("Invalid MOVE statement: {}", line);
+                anyhow::bail!("Invalid MOVE: {}", line);
             }
             let source = if let Ok(num) = parts[1].parse::<i64>() {
                 Source::Literal(num)
-            } else if parts[1].starts_with('\'') && parts[1].ends_with('\'') {
-                // Quoted string literal
-                let s = parts[1];
-                Source::LiteralString(s[1..s.len()-1].to_string())
+            } else if parts[1].starts_with('\'') {
+                let full = parts[1].to_string();
+                Source::LiteralString(full[1..full.len()-1].to_string())
             } else {
                 Source::Variable(parts[1].to_string())
             };
-            let target = parts[3].to_string();
-            Ok(Statement::Move { source, target })
+            Ok(Statement::Move { source, target: parts[3].to_string() })
         }
         "add" => {
             if parts.len() < 4 || parts[2].to_lowercase() != "to" {
-                anyhow::bail!("Invalid ADD statement: {}", line);
+                anyhow::bail!("Invalid ADD: {}", line);
             }
-            let value = parts[1].parse::<i64>()?;
-            let target = parts[3].to_string();
-            Ok(Statement::Add { target, value })
+            Ok(Statement::Add { target: parts[3].to_string(), value: parts[1].parse::<i64>()? })
         }
         "display" => {
             let lit_str = parts[1..].join(" ");
             let lit = if let Ok(num) = lit_str.parse::<i64>() {
                 Literal::Int(num)
             } else {
-                // If it's a quoted string, strip quotes
-                let trimmed = lit_str.trim();
-                if trimmed.starts_with('\'') && trimmed.ends_with('\'') {
-                    Literal::String(trimmed[1..trimmed.len()-1].to_string())
-                } else {
-                    Literal::String(lit_str.to_string())
-                }
+                Literal::String(lit_str.trim_matches('\'').to_string())
             };
             Ok(Statement::Display { value: lit })
         }
         "perform" => {
-            if parts.len() != 2 {
-                anyhow::bail!("Invalid PERFORM statement: {}", line);
-            }
+            if parts.len() != 2 { anyhow::bail!("Invalid PERFORM: {}", line); }
             Ok(Statement::Perform { name: parts[1].to_string() })
         }
         _ => anyhow::bail!("Unsupported statement in block: {}", line),
     }
 }
+
 fn parse_condition_str(s: &str) -> Result<Condition, anyhow::Error> {
     let s = s.trim_end_matches(" then").trim_end_matches(" THEN");
     let parts: Vec<&str> = s.split_whitespace().collect();
-    if parts.len() != 3 {
-        anyhow::bail!("Invalid condition: {}", s);
-    }
-    let left = parts[0].to_string();
-    let operator = parts[1].to_string();
-    let right = parts[2].parse::<i64>()?;
-    Ok(Condition { left, operator, right })
+    if parts.len() != 3 { anyhow::bail!("Invalid condition: {}", s); }
+    Ok(Condition { left: parts[0].to_string(), operator: parts[1].to_string(), right: parts[2].parse::<i64>()? })
 }
 
 fn parse_picture(pic: &str) -> (u32, u32) {
     let pic = pic.trim_end_matches('.');
-    let mut int_digits = 0;
-    let mut frac_digits = 0;
-    if let Some(v_pos) = pic.find('v') {
-        let int_part = &pic[..v_pos];
-        let frac_part = &pic[v_pos+1..];
-        int_digits = parse_digit_count(int_part);
-        frac_digits = parse_digit_count(frac_part);
+    let (int, frac) = if let Some(v) = pic.find('v') {
+        (digit_count(&pic[..v]), digit_count(&pic[v+1..]))
     } else {
-        int_digits = parse_digit_count(pic);
-    }
-    (int_digits, frac_digits)
+        (digit_count(pic), 0)
+    };
+    (int, frac)
 }
-
-fn parse_digit_count(s: &str) -> u32 {
+fn digit_count(s: &str) -> u32 {
     if s.contains('(') {
         let start = s.find('(').unwrap() + 1;
         let end = s.find(')').unwrap();

@@ -1,7 +1,5 @@
-use crate::ir::{Function, Statement, Source, Literal, Condition, FileMode, WhenClause, WhenCondition, LiteralOrVariable, StringSource};
+use crate::ir::{Function, Statement, Source, Literal, Condition, FileMode, WhenCondition, LiteralOrVariable, StringSource};
 use std::fmt::Write;
-use rust_decimal::Decimal;
-use crate::parser_cobol::PICTURES;
 
 pub fn translate(function: &Function) -> String {
     let mut out = String::new();
@@ -21,23 +19,11 @@ pub fn translate(function: &Function) -> String {
 fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
     match stmt {
         Statement::Add { target, value } => {
-            let pics = PICTURES.lock().unwrap();
-            if let Some(pic) = pics.get(target) {
-                writeln!(out, "{}{} = {} + Decimal::new({}, {});", indent, target, target, value, pic.fractional_digits).unwrap();
-            } else {
-                writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
-            }
+            writeln!(out, "{}{} = {} + {};", indent, target, target, value).unwrap();
         }
         Statement::Move { source, target } => {
             let src_expr = match source {
-                Source::Literal(i) => {
-                    let pics = PICTURES.lock().unwrap();
-                    if let Some(pic) = pics.get(target) {
-                        format!("Decimal::new({}, {})", i, pic.fractional_digits)
-                    } else {
-                        i.to_string()
-                    }
-                }
+                Source::Literal(i) => i.to_string(),
                 Source::LiteralString(s) => format!("{:?}.to_string()", s),
                 Source::Variable(v) => v.clone(),
             };
@@ -73,33 +59,6 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                 Literal::Int(i) => writeln!(out, "{}println!(\"{}\");", indent, i).unwrap(),
                 Literal::String(s) => writeln!(out, "{}println!(\"{}\");", indent, s).unwrap(),
             }
-        }
-        Statement::OpenFile { mode, name } => {
-            let mode_str = match mode {
-                FileMode::Input => "std::fs::File::open",
-                FileMode::Output => "std::fs::File::create",
-                FileMode::IO => "std::fs::OpenOptions::new().read(true).write(true).open",
-            };
-            writeln!(out, "{}{} = {}?;", indent, name, mode_str).unwrap();
-        }
-        Statement::ReadFile { file, into } => {
-            if let Some(into) = into {
-                writeln!(out, "{}let mut buffer = String::new();", indent).unwrap();
-                writeln!(out, "{}{}.read_to_string(&mut buffer)?;", indent, file).unwrap();
-                writeln!(out, "{}{} = buffer;", indent, into).unwrap();
-            } else {
-                writeln!(out, "{}{}.read_to_string(&mut String::new())?;", indent, file).unwrap();
-            }
-        }
-        Statement::WriteFile { file, from } => {
-            if let Some(from) = from {
-                writeln!(out, "{}{}.write_all({}.as_bytes())?;", indent, file, from).unwrap();
-            } else {
-                writeln!(out, "{}{}.write_all(b\"\")?;", indent, file).unwrap();
-            }
-        }
-        Statement::CloseFile { name } => {
-            writeln!(out, "{}{}.sync_all()?;", indent, name).unwrap();
         }
         Statement::Evaluate { subject, also_subject, when_clauses } => {
             writeln!(out, "{}match {} {{", indent, subject).unwrap();
@@ -140,14 +99,14 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                 writeln!(out, "{}// pointer {} not implemented", indent, ptr).unwrap();
             }
         }
-                Statement::Unstring { source, delimited_by, into, pointer } => {
+        Statement::Unstring { source, delimited_by, into, pointer } => {
             let delim = match delimited_by {
-                Some(d) => match *d {
+                Some(d) => match d {
                     LiteralOrVariable::Literal(lit) => match lit {
                         Literal::Int(i) => i.to_string(),
-                        Literal::String(s) => s,
+                        Literal::String(s) => s.clone(),
                     },
-                    LiteralOrVariable::Variable(v) => v,
+                    LiteralOrVariable::Variable(v) => v.clone(),
                 },
                 None => " ".to_string(),
             };
@@ -157,32 +116,49 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             if let Some(ptr) = pointer {
                 writeln!(out, "{}// pointer {} not implemented", indent, ptr).unwrap();
             }
-        },
-                    LiteralOrVariable::Variable(v) => v,
-                },
-                None => " ".to_string(),
-            };
-            for (i, var) in into.iter().enumerate() {
-                writeln!(out, "{}{} = {}.split('{}').nth({}).unwrap_or(\"\").to_string();", indent, var, source, delim, i).unwrap();
-            }
-            if let Some(ptr) = pointer {
-                writeln!(out, "{}// pointer {} not implemented", indent, ptr).unwrap();
-            
-        
-         => {
+        }
+        Statement::Redefines { name, redefines } => {
             writeln!(out, "{}// REDEFINES {} {} not implemented", indent, name, redefines).unwrap();
         }
-         => {
+        Statement::Occurs { name, count } => {
             writeln!(out, "{}let mut {} = vec![0; {}];", indent, name, count).unwrap();
         }
-         => {
+        Statement::ConditionName { name, value } => {
             let val_str = match value {
                 Literal::Int(i) => i.to_string(),
-                Literal::String(s) => format!("{:?}", s),
+                Literal::String(s) => s.clone(),
             };
-            writeln!(out, "{}const {}: &str = {};", indent, name, val_str).unwrap();
+            writeln!(out, "{}const {}: &str = \"{}\";", indent, name, val_str).unwrap();
         }
-        _ => {}
+        Statement::OpenFile { mode, name } => {
+            let mode_str = match mode {
+                FileMode::Input => "std::fs::File::open",
+                FileMode::Output => "std::fs::File::create",
+                FileMode::IO => "std::fs::OpenOptions::new().read(true).write(true).open",
+            };
+            writeln!(out, "{}{} = {}?;", indent, name, mode_str).unwrap();
+        }
+        Statement::ReadFile { file, into } => {
+            if let Some(into) = into {
+                writeln!(out, "{}let mut buffer = String::new();", indent).unwrap();
+                writeln!(out, "{}{}.read_to_string(&mut buffer)?;", indent, file).unwrap();
+                writeln!(out, "{}{} = buffer;", indent, into).unwrap();
+            } else {
+                writeln!(out, "{}{}.read_to_string(&mut String::new())?;", indent, file).unwrap();
+            }
+        }
+        Statement::WriteFile { file, from } => {
+            if let Some(from) = from {
+                writeln!(out, "{}{}.write_all({}.as_bytes())?;", indent, file, from).unwrap();
+            } else {
+                writeln!(out, "{}{}.write_all(b\"\")?;", indent, file).unwrap();
+            }
+        }
+        Statement::CloseFile { name } => {
+            writeln!(out, "{}{}.sync_all()?;", indent, name).unwrap();
+        }
+        _ => {
+            writeln!(out, "{}// {:?} not implemented", indent, stmt).unwrap();
+        }
     }
-        Statement::Redefines { .. } => {},\n        Statement::Occurs { .. } => {},\n        Statement::ConditionName { .. } => {},\n  
-  
+}

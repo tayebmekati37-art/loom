@@ -27,7 +27,7 @@ pub enum Statement {
     },
     Unstring {
         source: String,
-        delimited_by: Option<Box<LiteralOrVariable>>,
+        delimited_by: Option<LiteralOrVariable>,
         into: Vec<String>,
         pointer: Option<String>,
     },
@@ -55,7 +55,7 @@ pub enum WhenCondition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StringSource {
     pub source: LiteralOrVariable,
-    pub delimited_by: Option<Box<LiteralOrVariable>>,
+    pub delimited_by: Option<LiteralOrVariable>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
