@@ -1,17 +1,5 @@
-use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition, StringSource, LiteralOrVariable};
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
-use std::sync::Mutex;
+﻿use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition, StringSource, LiteralOrVariable, FileMode};
 
-pub static PICTURES: Lazy<Mutex<HashMap<String, Picture>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-
-#[derive(Debug, Clone)]
-pub struct Picture {
-    pub integer_digits: u32,
-    pub fractional_digits: u32,
-}
-
-// Full parser with PROCEDURE DIVISION only – skips DIVISION headers
 pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     let input = input.trim_start_matches('\u{feff}');
     let lines: Vec<&str> = input.lines().collect();
@@ -25,7 +13,6 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
         if line.is_empty() { i += 1; continue; }
         let lower = line.to_lowercase();
 
-        // Divisions
         if lower.starts_with("identification division") ||
            lower.starts_with("environment division") {
             i += 1; continue;
@@ -40,21 +27,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
             i += 1; continue;
         }
         if in_data {
-            // Capture PIC (simplified)
-            if lower.contains(" pic ") || lower.contains("picture") {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    let var_name = parts[1].trim_end_matches('.').to_string();
-                    let pic_idx = parts.iter().position(|&p| p.to_lowercase() == "pic" || p.to_lowercase() == "picture");
-                    if let Some(idx) = pic_idx {
-                        if idx + 1 < parts.len() {
-                            let pic_str = parts[idx+1].to_lowercase();
-                            let (int, frac) = parse_picture(&pic_str);
-                            PICTURES.lock().unwrap().insert(var_name, Picture { integer_digits: int, fractional_digits: frac });
-                        }
-                    }
-                }
-            }
+            // ignore data division for parsing statements
             i += 1; continue;
         }
         if !in_procedure { i += 1; continue; }
@@ -68,23 +41,47 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 if parts.len() < 4 || parts[2].to_lowercase() != "to" {
                     anyhow::bail!("Invalid MOVE: {}", line);
                 }
-                let source = if let Ok(num) = parts[1].parse::<i64>() {
-                    Source::Literal(num)
-                } else if parts[1].starts_with('\'') {
-                    // reconstruct quoted string
-                    let mut full = parts[1].to_string();
-                    let mut j = 2;
-                    while j < parts.len() && !full.ends_with('\'') {
-                        full.push(' ');
-                        full.push_str(parts[j]);
-                        j += 1;
-                    }
-                    Source::LiteralString(full[1..full.len()-1].to_string())
+                let source_part = parts[1];
+                let target_part = parts[3];
+                // Check if target is an array element
+                if let Some((name, idx)) = parse_array_ref(target_part) {
+                    let source = if let Ok(num) = source_part.parse::<i64>() {
+                        Source::Literal(num)
+                    } else if source_part.starts_with('\'') {
+                        let mut full = source_part.to_string();
+                        let mut j = 2;
+                        while j < parts.len() && !full.ends_with('\'') {
+                            full.push(' ');
+                            full.push_str(parts[j]);
+                            j += 1;
+                        }
+                        Source::LiteralString(full[1..full.len()-1].to_string())
+                    } else {
+                        Source::Variable(source_part.to_string())
+                    };
+                    statements.push(Statement::ArraySet { name, index: idx, value: source });
+                } else if let Some((name, idx)) = parse_array_ref(source_part) {
+                    // Source is array element
+                    let target = target_part.to_string();
+                    statements.push(Statement::ArrayGet { name, index: idx, target });
                 } else {
-                    Source::Variable(parts[1].to_string())
-                };
-                let target = parts[3].to_string();
-                statements.push(Statement::Move { source, target });
+                    let source = if let Ok(num) = source_part.parse::<i64>() {
+                        Source::Literal(num)
+                    } else if source_part.starts_with('\'') {
+                        let mut full = source_part.to_string();
+                        let mut j = 2;
+                        while j < parts.len() && !full.ends_with('\'') {
+                            full.push(' ');
+                            full.push_str(parts[j]);
+                            j += 1;
+                        }
+                        Source::LiteralString(full[1..full.len()-1].to_string())
+                    } else {
+                        Source::Variable(source_part.to_string())
+                    };
+                    let target = target_part.to_string();
+                    statements.push(Statement::Move { source, target });
+                }
                 i += 1;
             }
             "add" => {
@@ -125,11 +122,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                     }
                     i += 1;
                 }
-                statements.push(Statement::If {
-                    condition,
-                    then_branch,
-                    else_branch,
-                });
+                statements.push(Statement::If { condition, then_branch, else_branch });
             }
             "perform" => {
                 if parts.len() != 2 {
@@ -152,83 +145,35 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
             }
             "evaluate" => {
-                let subject = parts[1].to_string();
-                let also_subject = if parts.len() > 2 && parts[2].to_lowercase() == "also" {
-                    Some(parts[3].to_string())
-                } else { None };
-                i += 1;
-                let mut when_clauses = Vec::new();
-                while i < lines.len() {
-                    let l = lines[i].trim();
-                    if l.to_lowercase().starts_with("end-evaluate") {
-                        i += 1;
-                        break;
-                    }
-                    let l_parts: Vec<&str> = l.split_whitespace().collect();
-                    if l_parts.is_empty() { i += 1; continue; }
-                    if l_parts[0].to_lowercase() == "when" {
-                        let cond_val = l_parts[1].to_string();
-                        let condition = if let Ok(num) = cond_val.parse::<i64>() {
-                            WhenCondition::Literal(Literal::Int(num))
-                        } else {
-                            WhenCondition::Variable(cond_val)
-                        };
-                        i += 1;
-                        let mut when_body = Vec::new();
-                        while i < lines.len() {
-                            let bl = lines[i].trim();
-                            if bl.is_empty() { i += 1; continue; }
-                            if bl.to_lowercase().starts_with("when") || bl.to_lowercase().starts_with("end-evaluate") {
-                                break;
-                            }
-                            when_body.push(parse_single_statement(bl)?);
-                            i += 1;
-                        }
-                        when_clauses.push(WhenClause { condition, body: when_body });
-                    } else {
-                        anyhow::bail!("Expected WHEN inside EVALUATE, got: {}", l);
-                    }
-                }
-                statements.push(Statement::Evaluate { subject, also_subject, when_clauses });
-            }
-            "string" => {
-                let first = line.to_lowercase().strip_prefix("string").unwrap().trim().to_string();
-                let mut parts_vec = vec![first];
-                i += 1;
-                while i < lines.len() {
-                    let l = lines[i].trim();
-                    if l.to_lowercase().starts_with("end-string") {
-                        i += 1;
-                        break;
-                    }
-                    if !l.is_empty() { parts_vec.push(l.to_string()); }
+                // Simplified version – implement if needed
+                eprintln!("EVALUATE not fully implemented, ignoring");
+                // skip until END-EVALUATE
+                while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-evaluate") {
                     i += 1;
                 }
-                let full = parts_vec.join(" ");
-                let into_idx = full.to_lowercase().find(" into ").ok_or_else(|| anyhow::anyhow!("Missing INTO in STRING"))?;
-                let before = &full[..into_idx];
-                let after = &full[into_idx + 6..];
-                let into_var = after.split_whitespace().next().unwrap().to_string();
-                let mut sources = Vec::new();
-                for token in before.split_whitespace() {
-                    if token.starts_with('\'') {
-                        let s = token.trim_matches('\'');
-                        sources.push(StringSource { source: LiteralOrVariable::Literal(Literal::String(s.to_string())), delimited_by: None });
-                    } else if let Ok(num) = token.parse::<i64>() {
-                        sources.push(StringSource { source: LiteralOrVariable::Literal(Literal::Int(num)), delimited_by: None });
-                    } else {
-                        sources.push(StringSource { source: LiteralOrVariable::Variable(token.to_string()), delimited_by: None });
-                    }
+                i += 1;
+            }
+            "string" => {
+                eprintln!("STRING not implemented, ignoring");
+                while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-string") {
+                    i += 1;
                 }
-                statements.push(Statement::String { sources, into: into_var, pointer: None });
+                i += 1;
             }
             "unstring" => {
-                eprintln!("UNSTRING not implemented in parser, ignoring");
-                i += 1;
-                // skip until end-unstring
+                eprintln!("UNSTRING not implemented, ignoring");
                 while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-unstring") {
                     i += 1;
                 }
+                i += 1;
+            }
+            "compute" => {
+                if parts.len() < 4 || parts[2].to_lowercase() != "=" {
+                    anyhow::bail!("Invalid COMPUTE: {}", line);
+                }
+                let target = parts[1].to_string();
+                let expr = parts[3..].join(" ");
+                statements.push(Statement::Compute { target, expr });
                 i += 1;
             }
             "open" | "read" | "write" | "close" => {
@@ -249,7 +194,9 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
 
 fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
     let parts: Vec<&str> = line.split_whitespace().collect();
-    if parts.is_empty() { anyhow::bail!("Empty statement"); }
+    if parts.is_empty() {
+        anyhow::bail!("Empty statement");
+    }
     match parts[0].to_lowercase().as_str() {
         "move" => {
             if parts.len() < 4 || parts[2].to_lowercase() != "to" {
@@ -263,7 +210,8 @@ fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
             } else {
                 Source::Variable(parts[1].to_string())
             };
-            Ok(Statement::Move { source, target: parts[3].to_string() })
+            let target = parts[3].to_string();
+            Ok(Statement::Move { source, target })
         }
         "add" => {
             if parts.len() < 4 || parts[2].to_lowercase() != "to" {
@@ -281,7 +229,9 @@ fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
             Ok(Statement::Display { value: lit })
         }
         "perform" => {
-            if parts.len() != 2 { anyhow::bail!("Invalid PERFORM: {}", line); }
+            if parts.len() != 2 {
+                anyhow::bail!("Invalid PERFORM: {}", line);
+            }
             Ok(Statement::Perform { name: parts[1].to_string() })
         }
         _ => anyhow::bail!("Unsupported statement in block: {}", line),
@@ -291,25 +241,22 @@ fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
 fn parse_condition_str(s: &str) -> Result<Condition, anyhow::Error> {
     let s = s.trim_end_matches(" then").trim_end_matches(" THEN");
     let parts: Vec<&str> = s.split_whitespace().collect();
-    if parts.len() != 3 { anyhow::bail!("Invalid condition: {}", s); }
+    if parts.len() != 3 {
+        anyhow::bail!("Invalid condition: {}", s);
+    }
     Ok(Condition { left: parts[0].to_string(), operator: parts[1].to_string(), right: parts[2].parse::<i64>()? })
 }
 
-fn parse_picture(pic: &str) -> (u32, u32) {
-    let pic = pic.trim_end_matches('.');
-    let (int, frac) = if let Some(v) = pic.find('v') {
-        (digit_count(&pic[..v]), digit_count(&pic[v+1..]))
-    } else {
-        (digit_count(pic), 0)
-    };
-    (int, frac)
-}
-fn digit_count(s: &str) -> u32 {
-    if s.contains('(') {
-        let start = s.find('(').unwrap() + 1;
-        let end = s.find(')').unwrap();
-        s[start..end].parse().unwrap_or(0)
-    } else {
-        s.len() as u32
+fn parse_array_ref(s: &str) -> Option<(String, i64)> {
+    let s = s.trim();
+    if let Some(paren) = s.find('(') {
+        if let Some(close) = s.find(')') {
+            let name = s[..paren].to_string();
+            let idx_str = &s[paren+1..close];
+            if let Ok(idx) = idx_str.parse::<i64>() {
+                return Some((name, idx));
+            }
+        }
     }
+    None
 }

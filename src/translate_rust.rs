@@ -157,6 +157,23 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::CloseFile { name } => {
             writeln!(out, "{}{}.sync_all()?;", indent, name).unwrap();
         }
+        Statement::ArrayGet { name, index, target } => {
+            // Convert 1‑based COBOL index to 0‑based Rust index
+            let rust_index = index - 1;
+            writeln!(out, "{}{} = {}[{}];", indent, target, name, rust_index).unwrap();
+        }
+        Statement::ArraySet { name, index, value } => {
+            let src_expr = match value {
+                Source::Literal(i) => i.to_string(),
+                Source::LiteralString(s) => format!("{:?}.to_string()", s),
+                Source::Variable(v) => v.clone(),
+            };
+            let rust_index = index - 1;
+            writeln!(out, "{}{}[{}] = {};", indent, name, rust_index, src_expr).unwrap();
+        }
+        Statement::Compute { target, expr } => {
+            writeln!(out, "{}{} = {};", indent, target, expr).unwrap();
+        }
         _ => {
             writeln!(out, "{}// {:?} not implemented", indent, stmt).unwrap();
         }

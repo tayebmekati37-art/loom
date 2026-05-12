@@ -127,17 +127,20 @@ impl Interpreter {
                     crate::ir::Literal::String(s) => println!("{}", s),
                 }
             }
-            // Advanced statements: ignore
+            // Advanced statements – ignore (they are not needed for interpreter)
             crate::ir::Statement::Evaluate { .. } => {}
             crate::ir::Statement::String { .. } => {}
             crate::ir::Statement::Unstring { .. } => {}
             crate::ir::Statement::Redefines { .. } => {}
             crate::ir::Statement::Occurs { .. } => {}
             crate::ir::Statement::ConditionName { .. } => {}
+            crate::ir::Statement::Compute { .. } => {}
             crate::ir::Statement::OpenFile { .. } => {}
             crate::ir::Statement::ReadFile { .. } => {}
             crate::ir::Statement::WriteFile { .. } => {}
             crate::ir::Statement::CloseFile { .. } => {}
+            crate::ir::Statement::ArrayGet { .. } => {}
+            crate::ir::Statement::ArraySet { .. } => {}
         }
     }
 

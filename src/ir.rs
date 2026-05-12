@@ -34,10 +34,13 @@ pub enum Statement {
     Redefines { name: String, redefines: String },
     Occurs { name: String, count: i64 },
     ConditionName { name: String, value: Literal },
+    Compute { target: String, expr: String },
     OpenFile { mode: FileMode, name: String },
     ReadFile { file: String, into: Option<String> },
     WriteFile { file: String, from: Option<String> },
     CloseFile { name: String },
+    ArrayGet { name: String, index: i64, target: String },
+    ArraySet { name: String, index: i64, value: Source },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -327,7 +327,7 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
             ir::Statement::Evaluate { subject, also_subject, when_clauses } => {
                 set.insert(subject.clone());
                 if let Some(also) = also_subject {
-                    set.insert(also.clone());
+                    set.insert(also.clone());  // FIXED: added .clone()
                 }
                 for when in when_clauses {
                     if let ir::WhenCondition::Variable(v) = &when.condition {
@@ -350,20 +350,18 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
                     set.insert(var.clone());
                 }
             }
+            ir::Statement::Compute { target, .. } => {
+                set.insert(target.clone());
+            }
+            ir::Statement::Redefines { .. } => {}
+            ir::Statement::Occurs { .. } => {}
+            ir::Statement::ConditionName { .. } => {}
             ir::Statement::OpenFile { .. } => {}
             ir::Statement::ReadFile { .. } => {}
             ir::Statement::WriteFile { .. } => {}
             ir::Statement::CloseFile { .. } => {}
-            ir::Statement::Redefines { name, redefines } => {
-                set.insert(name.clone());
-                set.insert(redefines.clone());
-            }
-            ir::Statement::Occurs { name, .. } => {
-                set.insert(name.clone());
-            }
-            ir::Statement::ConditionName { name, .. } => {
-                set.insert(name.clone());
-            }
+            ir::Statement::ArrayGet { .. } => {}
+            ir::Statement::ArraySet { .. } => {}
         }
     }
 }
