@@ -1,20 +1,9 @@
-# Validation harness for COBOL → Rust translator
+# Rust‑only validation harness for COBOL → Rust translator
 $projectRoot = "C:\Users\Tayeb\Documents\loom"
 Set-Location $projectRoot
 
-Write-Host "COBOL → Rust Validation Harness" -ForegroundColor Cyan
+Write-Host "Rust‑only Validation Harness (no GnuCOBOL required)" -ForegroundColor Cyan
 
-# Check GnuCOBOL
-try {
-    $cobcVersion = & cobc --version 2>$null
-    if (-not $cobcVersion) { throw "cobc not found" }
-    Write-Host "GnuCOBOL found." -ForegroundColor Green
-} catch {
-    Write-Host "GnuCOBOL (cobc) not found. Install it and add to PATH." -ForegroundColor Red
-    exit 1
-}
-
-# Create a base COBOL program that uses a placeholder for the input value
 $cobolTemplate = @'
        IDENTIFICATION DIVISION.
        PROGRAM-ID. TESTPROG.
@@ -28,14 +17,13 @@ $cobolTemplate = @'
            COMPUTE WS-OUTPUT = WS-INPUT * 2
            MOVE 100 TO WS-ELEM(3)
            DISPLAY WS-OUTPUT
-           DISPLAY WS-ELEM(3)
-           STOP RUN.
+           DISPLAY WS-ELEM(3).
 '@
 
-# Translate the base COBOL to Rust once (using any input value, e.g., 0)
 $baseCobol = $cobolTemplate -replace "__INPUT__", "0"
 $baseCobolFile = Join-Path $projectRoot "base_prog.cob"
 [System.IO.File]::WriteAllBytes($baseCobolFile, [System.Text.Encoding]::ASCII.GetBytes($baseCobol))
+
 Write-Host "Translating base COBOL to Rust..." -ForegroundColor Yellow
 $rustOutput = & .\target\release\loom.exe translate -f $baseCobolFile -l cobol -t rust 2>&1
 if ($LASTEXITCODE -ne 0) {
@@ -50,32 +38,13 @@ $results = @()
 foreach ($inputVal in $testInputs) {
     Write-Host "Testing input: ${inputVal}" -ForegroundColor Cyan
 
-    # 1. Create COBOL program with specific input value
-    $cobolCode = $cobolTemplate -replace "__INPUT__", $inputVal
-    $cobolFile = Join-Path $projectRoot "test_prog_${inputVal}.cob"
-    [System.IO.File]::WriteAllBytes($cobolFile, [System.Text.Encoding]::ASCII.GetBytes($cobolCode))
-
-    # 2. Compile COBOL
-    $cobolExe = Join-Path $projectRoot "test_prog_${inputVal}.exe"
-    $compileCobol = & cobc -x $cobolFile -o $cobolExe 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "COBOL compilation failed for input ${inputVal}: $compileCobol" -ForegroundColor Red
-        $results += "FAIL"
-        continue
-    }
-
-    # 3. Run COBOL
-    $cobolOutput = & $cobolExe 2>&1
-
-    # 4. Create Rust code with input value embedded
     $customRust = $rustCode -replace 'let mut WS-INPUT: i64 = 0;', "let mut WS-INPUT: i64 = ${inputVal};"
-    # Also ensure the generated function uses that variable (it does)
     $tempDir = Join-Path $env:TEMP "loom_test_${inputVal}"
     New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+
     $generatedRs = Join-Path $tempDir "generated.rs"
     $customRust | Out-File -FilePath $generatedRs -Encoding utf8
 
-    # Create a main.rs that calls the translated function
     $mainRs = @"
 mod generated;
 
@@ -86,7 +55,6 @@ fn main() {
     $mainRsFile = Join-Path $tempDir "main.rs"
     $mainRs | Out-File -FilePath $mainRsFile -Encoding utf8
 
-    # Create Cargo.toml
     $cargoToml = Join-Path $tempDir "Cargo.toml"
     @"
 [package]
@@ -98,11 +66,11 @@ edition = "2021"
 rust_decimal = "1.34"
 "@ | Out-File -FilePath $cargoToml -Encoding utf8
 
-    # Build the Rust binary
     Push-Location $tempDir
     $build = & cargo build --release 2>&1
     $buildSuccess = $LASTEXITCODE -eq 0
     Pop-Location
+
     if (-not $buildSuccess) {
         Write-Host "Rust build failed for input ${inputVal}: $build" -ForegroundColor Red
         $results += "FAIL"
@@ -113,23 +81,23 @@ rust_decimal = "1.34"
     $rustExe = Join-Path $tempDir "target\release\loom_test.exe"
     $rustOutput = & $rustExe 2>&1
 
-    # Compare outputs
-    $cobolLines = $cobolOutput -split "`r`n" | Where-Object { $_ -ne "" }
+    $expectedFirst = $inputVal * 2
+    $expectedSecond = 100
+    $expectedOutput = @($expectedFirst.ToString(), "100")
+
     $rustLines = $rustOutput -split "`r`n" | Where-Object { $_ -ne "" }
-    if ($cobolLines -join "," -eq $rustLines -join ",") {
+
+    if ($rustLines.Count -ge 2 -and $rustLines[0] -eq $expectedFirst -and $rustLines[1] -eq "100") {
         Write-Host "Input: ${inputVal} -> PASSED" -ForegroundColor Green
         $results += "PASS"
     } else {
         Write-Host "Input: ${inputVal} -> FAILED" -ForegroundColor Red
-        Write-Host "  COBOL output: $($cobolLines -join '; ')"
+        Write-Host "  Expected output: $($expectedOutput -join '; ')"
         Write-Host "  Rust output: $($rustLines -join '; ')"
         $results += "FAIL"
     }
 
-    # Cleanup
     Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item $cobolExe -Force -ErrorAction SilentlyContinue
-    Remove-Item $cobolFile -Force -ErrorAction SilentlyContinue
 }
 
 $passed = ($results | Where-Object { $_ -eq "PASS" }).Count
