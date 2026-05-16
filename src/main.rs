@@ -305,54 +305,80 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
             ir::Statement::Add { target, .. } => {
                 set.insert(target.clone());
             }
+
             ir::Statement::Move { source, target } => {
                 set.insert(target.clone());
+
                 if let ir::Source::Variable(v) = source {
                     set.insert(v.clone());
                 }
             }
-            ir::Statement::If { condition, then_branch, else_branch } => {
+
+            ir::Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
                 set.insert(condition.left.clone());
+
                 collect_variables(then_branch, set);
+
                 if let Some(b) = else_branch {
                     collect_variables(b, set);
                 }
             }
+
             ir::Statement::Perform { .. } => {}
+
             ir::Statement::While { condition, body } => {
                 set.insert(condition.left.clone());
                 collect_variables(body, set);
             }
+
             ir::Statement::Display { .. } => {}
-            ir::Statement::Evaluate { subject, also_subject, when_clauses } => {
+
+            ir::Statement::Evaluate {
+                subject,
+                also_subject,
+                when_clauses,
+            } => {
                 set.insert(subject.clone());
+
                 if let Some(also) = also_subject {
-                    set.insert(also.clone());  // FIXED: added .clone()
+                    set.insert(also.clone());
                 }
+
                 for when in when_clauses {
                     if let ir::WhenCondition::Variable(v) = &when.condition {
                         set.insert(v.clone());
                     }
+
                     collect_variables(&when.body, set);
                 }
             }
+
             ir::Statement::String { sources, into, .. } => {
                 set.insert(into.clone());
+
                 for src in sources {
                     if let ir::LiteralOrVariable::Variable(v) = &src.source {
                         set.insert(v.clone());
                     }
                 }
             }
+
             ir::Statement::Unstring { source, into, .. } => {
                 set.insert(source.clone());
+
                 for var in into {
                     set.insert(var.clone());
                 }
             }
+
             ir::Statement::Compute { target, .. } => {
                 set.insert(target.clone());
             }
+
             ir::Statement::Redefines { .. } => {}
             ir::Statement::Occurs { .. } => {}
             ir::Statement::ConditionName { .. } => {}
@@ -362,6 +388,11 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
             ir::Statement::CloseFile { .. } => {}
             ir::Statement::ArrayGet { .. } => {}
             ir::Statement::ArraySet { .. } => {}
+            ir::Statement::Accept { .. } => {}
+            ir::Statement::StopRun => {}
+            ir::Statement::Continue => {}
+            ir::Statement::Exit => {}
+            ir::Statement::Inspect { .. } => {}
         }
     }
 }

@@ -41,6 +41,12 @@ pub enum Statement {
     CloseFile { name: String },
     ArrayGet { name: String, index: i64, target: String },
     ArraySet { name: String, index: i64, value: Source },
+    // New features
+    Accept { target: String },
+    StopRun,
+    Continue,
+    Exit,
+    Inspect { source: String, target: String, pattern: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

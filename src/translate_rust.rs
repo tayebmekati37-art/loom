@@ -130,6 +130,9 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             };
             writeln!(out, "{}const {}: &str = \"{}\";", indent, name, val_str).unwrap();
         }
+        Statement::Compute { target, expr } => {
+            writeln!(out, "{}{} = {};", indent, target, expr).unwrap();
+        }
         Statement::OpenFile { mode, name } => {
             let mode_str = match mode {
                 FileMode::Input => "std::fs::File::open",
@@ -158,9 +161,7 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             writeln!(out, "{}{}.sync_all()?;", indent, name).unwrap();
         }
         Statement::ArrayGet { name, index, target } => {
-            // Convert 1‑based COBOL index to 0‑based Rust index
-            let rust_index = index - 1;
-            writeln!(out, "{}{} = {}[{}];", indent, target, name, rust_index).unwrap();
+            writeln!(out, "{}{} = {}[{}];", indent, target, name, index).unwrap();
         }
         Statement::ArraySet { name, index, value } => {
             let src_expr = match value {
@@ -168,11 +169,25 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                 Source::LiteralString(s) => format!("{:?}.to_string()", s),
                 Source::Variable(v) => v.clone(),
             };
-            let rust_index = index - 1;
-            writeln!(out, "{}{}[{}] = {};", indent, name, rust_index, src_expr).unwrap();
+            writeln!(out, "{}{}[{}] = {};", indent, name, index, src_expr).unwrap();
         }
-        Statement::Compute { target, expr } => {
-            writeln!(out, "{}{} = {};", indent, target, expr).unwrap();
+        // New features
+        Statement::Accept { target } => {
+            writeln!(out, "{}let mut input = String::new();", indent).unwrap();
+            writeln!(out, "{}{} = std::io::stdin().read_line(&mut input).unwrap();", indent, target).unwrap();
+            writeln!(out, "{}{} = input.trim().parse().unwrap();", indent, target).unwrap();
+        }
+        Statement::StopRun => {
+            writeln!(out, "{}return Ok(());", indent).unwrap();
+        }
+        Statement::Continue => {
+            writeln!(out, "{}// CONTINUE (no-op)", indent).unwrap();
+        }
+        Statement::Exit => {
+            writeln!(out, "{}// EXIT (no-op)", indent).unwrap();
+        }
+        Statement::Inspect { source, target, pattern } => {
+            writeln!(out, "{}{} = {}.matches('{}').count();", indent, target, source, pattern).unwrap();
         }
         _ => {
             writeln!(out, "{}// {:?} not implemented", indent, stmt).unwrap();
