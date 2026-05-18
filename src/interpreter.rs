@@ -18,7 +18,7 @@ pub struct CommandRunner {
 
 impl CommandRunner {
     pub fn new(command: &str, args: Vec<String>, ext: &str) -> Self {
-        CommandRunner {
+        Self {
             command: command.to_string(),
             args,
             tempfile_extension: ext.to_string(),
@@ -81,7 +81,7 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new() -> Self {
-        Interpreter {
+        Self {
             vars: HashMap::new(),
             functions: HashMap::new(),
         }
@@ -149,8 +149,6 @@ impl Interpreter {
                 if let Some(func) = self.functions.get(name) {
                     let body = func.body.clone();
                     self.execute_block(&body);
-                } else {
-                    eprintln!("Undefined function: {}", name);
                 }
             }
 
@@ -160,10 +158,12 @@ impl Interpreter {
                 }
             }
 
-            crate::ir::Statement::Display { value } => match value {
-                crate::ir::Literal::Int(i) => println!("{}", i),
-                crate::ir::Literal::String(s) => println!("{}", s),
-            },
+            crate::ir::Statement::Display { value } => {
+                match value {
+                    crate::ir::Literal::Int(i) => println!("{}", i),
+                    crate::ir::Literal::String(s) => println!("{}", s),
+                }
+            }
 
             crate::ir::Statement::Evaluate { .. } => {}
             crate::ir::Statement::String { .. } => {}
