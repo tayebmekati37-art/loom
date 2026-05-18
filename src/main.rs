@@ -1,4 +1,4 @@
-﻿mod parser;
+mod parser;
 mod parser_cobol;
 mod parser_rpg;
 mod parser_pli;
@@ -396,3 +396,4 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
         }
     }
 }
+
