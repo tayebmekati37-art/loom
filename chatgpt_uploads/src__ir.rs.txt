@@ -105,38 +105,3 @@ pub enum FileMode {
     Output,
     IO,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataField {
-    pub level: u32,
-    pub name: String,
-    pub pic: Option<PicClause>,
-    pub occurs: Option<u32>,
-    pub redefines: Option<String>,
-    pub usage: Option<UsageClause>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PicClause {
-    pub raw: String,
-    pub category: PicCategory,
-    pub length: usize,
-    pub scale: usize,
-    pub signed: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PicCategory {
-    Numeric,
-    AlphaNumeric,
-    Decimal,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum UsageClause {
-    Display,
-    Comp,
-    Comp3,
-    Binary,
-}
-

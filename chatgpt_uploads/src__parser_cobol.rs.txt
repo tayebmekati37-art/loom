@@ -219,7 +219,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 statements.push(Statement::String { sources, into: into_var, pointer: None });
             }
             "unstring" => {
-                // Simple stub â€“ ignore for now
+                // Simple stub – ignore for now
                 eprintln!("UNSTRING not fully implemented, ignoring");
                 // Skip until end-unstring
                 while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-unstring") {
@@ -307,7 +307,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
             }
             "inspect" => {
-                // Stub â€“ just add a comment as a Display statement
+                // Stub – just add a comment as a Display statement
                 let comment = format!("# INSPECT not implemented: {}", line);
                 statements.push(Statement::Display { value: Literal::String(comment) });
                 i += 1;
@@ -390,61 +390,3 @@ fn parse_condition_str(s: &str) -> Result<Condition, anyhow::Error> {
         right: parts[2].parse::<i64>()?,
     })
 }
-
-fn parse_pic_clause(pic: &str) -> crate::ir::PicClause {
-    let upper = pic.to_uppercase();
-
-    let signed = upper.contains("S9");
-
-    let category =
-        if upper.contains("X(") {
-            crate::ir::PicCategory::AlphaNumeric
-        } else if upper.contains("V") {
-            crate::ir::PicCategory::Decimal
-        } else {
-            crate::ir::PicCategory::Numeric
-        };
-
-    let mut length = 0usize;
-
-    if let Some(start) = upper.find("(") {
-        if let Some(end) = upper.find(")") {
-            let num = &upper[start + 1..end];
-            length = num.parse::<usize>().unwrap_or(0);
-        }
-    }
-
-    let scale =
-        if let Some(vpos) = upper.find("V") {
-            upper[vpos + 1..]
-                .chars()
-                .filter(|c| *c == '9')
-                .count()
-        } else {
-            0
-        };
-
-    crate::ir::PicClause {
-        raw: pic.to_string(),
-        category,
-        length,
-        scale,
-        signed,
-    }
-}
-
-fn detect_usage(line: &str) -> Option<crate::ir::UsageClause> {
-
-    let upper = line.to_uppercase();
-
-    if upper.contains("COMP-3") {
-        Some(crate::ir::UsageClause::Comp3)
-    } else if upper.contains("COMP") {
-        Some(crate::ir::UsageClause::Comp)
-    } else if upper.contains("BINARY") {
-        Some(crate::ir::UsageClause::Binary)
-    } else {
-        Some(crate::ir::UsageClause::Display)
-    }
-}
-
