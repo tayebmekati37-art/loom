@@ -1,0 +1,8 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PERFORMTEST.
+       PROCEDURE DIVISION.
+           PERFORM CALC
+           STOP RUN.
+
+       CALC.
+           DISPLAY 'OK'
