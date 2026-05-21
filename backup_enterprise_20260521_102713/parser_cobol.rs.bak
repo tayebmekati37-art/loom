@@ -1,7 +1,4 @@
-use crate::ir::{
-    Condition, FileMode, Literal, LiteralOrVariable, Source, Statement, StringSource, WhenClause,
-    WhenCondition,
-};
+use crate::ir::{Statement, Source, Literal, Condition, WhenClause, WhenCondition, StringSource, LiteralOrVariable, FileMode};
 
 pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     let input = input.trim_start_matches('\u{feff}');
@@ -49,7 +46,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                         full.push_str(parts[j]);
                         j += 1;
                     }
-                    Source::LiteralString(full[1..full.len() - 1].to_string())
+                    Source::LiteralString(full[1..full.len()-1].to_string())
                 } else {
                     Source::Variable(parts[1].to_string())
                 };
@@ -105,9 +102,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 if parts.len() != 2 {
                     anyhow::bail!("Invalid PERFORM: {}", line);
                 }
-                statements.push(Statement::Perform {
-                    name: parts[1].to_string(),
-                });
+                statements.push(Statement::Perform { name: parts[1].to_string() });
                 i += 1;
             }
             "while" => {
@@ -177,27 +172,18 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                                 i += 1;
                                 continue;
                             }
-                            if bl.to_lowercase().starts_with("when")
-                                || bl.to_lowercase().starts_with("end-evaluate")
-                            {
+                            if bl.to_lowercase().starts_with("when") || bl.to_lowercase().starts_with("end-evaluate") {
                                 break;
                             }
                             when_body.push(parse_single_statement(bl)?);
                             i += 1;
                         }
-                        when_clauses.push(WhenClause {
-                            condition,
-                            body: when_body,
-                        });
+                        when_clauses.push(WhenClause { condition, body: when_body });
                     } else {
                         anyhow::bail!("Expected WHEN inside EVALUATE, got: {}", l);
                     }
                 }
-                statements.push(Statement::Evaluate {
-                    subject,
-                    also_subject,
-                    when_clauses,
-                });
+                statements.push(Statement::Evaluate { subject, also_subject, when_clauses });
             }
             "string" => {
                 let first = line.strip_prefix("string").unwrap().trim().to_string();
@@ -215,10 +201,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                     i += 1;
                 }
                 let full = parts_vec.join(" ");
-                let into_idx = full
-                    .to_lowercase()
-                    .find(" into ")
-                    .ok_or_else(|| anyhow::anyhow!("Missing INTO in STRING"))?;
+                let into_idx = full.to_lowercase().find(" into ").ok_or_else(|| anyhow::anyhow!("Missing INTO in STRING"))?;
                 let before = &full[..into_idx];
                 let after = &full[into_idx + 6..];
                 let into_var = after.split_whitespace().next().unwrap().to_string();
@@ -226,34 +209,20 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 for token in before.split_whitespace() {
                     if token.starts_with('\'') {
                         let s = token.trim_matches('\'');
-                        sources.push(StringSource {
-                            source: LiteralOrVariable::Literal(Literal::String(s.to_string())),
-                            delimited_by: None,
-                        });
+                        sources.push(StringSource { source: LiteralOrVariable::Literal(Literal::String(s.to_string())), delimited_by: None });
                     } else if let Ok(num) = token.parse::<i64>() {
-                        sources.push(StringSource {
-                            source: LiteralOrVariable::Literal(Literal::Int(num)),
-                            delimited_by: None,
-                        });
+                        sources.push(StringSource { source: LiteralOrVariable::Literal(Literal::Int(num)), delimited_by: None });
                     } else {
-                        sources.push(StringSource {
-                            source: LiteralOrVariable::Variable(token.to_string()),
-                            delimited_by: None,
-                        });
+                        sources.push(StringSource { source: LiteralOrVariable::Variable(token.to_string()), delimited_by: None });
                     }
                 }
-                statements.push(Statement::String {
-                    sources,
-                    into: into_var,
-                    pointer: None,
-                });
+                statements.push(Statement::String { sources, into: into_var, pointer: None });
             }
             "unstring" => {
                 // Simple stub – ignore for now
                 eprintln!("UNSTRING not fully implemented, ignoring");
                 // Skip until end-unstring
-                while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-unstring")
-                {
+                while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-unstring") {
                     i += 1;
                 }
                 i += 1;
@@ -340,9 +309,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
             "inspect" => {
                 // Stub – just add a comment as a Display statement
                 let comment = format!("# INSPECT not implemented: {}", line);
-                statements.push(Statement::Display {
-                    value: Literal::String(comment),
-                });
+                statements.push(Statement::Display { value: Literal::String(comment) });
                 i += 1;
             }
             _ => {
@@ -371,24 +338,18 @@ fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
                 Source::Literal(num)
             } else if parts[1].starts_with('\'') {
                 let s = parts[1];
-                Source::LiteralString(s[1..s.len() - 1].to_string())
+                Source::LiteralString(s[1..s.len()-1].to_string())
             } else {
                 Source::Variable(parts[1].to_string())
             };
-            Ok(Statement::Move {
-                source,
-                target: parts[3].to_string(),
-            })
+            Ok(Statement::Move { source, target: parts[3].to_string() })
         }
         "add" => {
             if parts.len() < 4 || parts[2].to_lowercase() != "to" {
                 anyhow::bail!("Invalid ADD: {}", line);
             }
             let value = parts[1].parse::<i64>()?;
-            Ok(Statement::Add {
-                target: parts[3].to_string(),
-                value,
-            })
+            Ok(Statement::Add { target: parts[3].to_string(), value })
         }
         "display" => {
             let lit_str = parts[1..].join(" ");
@@ -403,9 +364,7 @@ fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
             if parts.len() != 2 {
                 anyhow::bail!("Invalid PERFORM: {}", line);
             }
-            Ok(Statement::Perform {
-                name: parts[1].to_string(),
-            })
+            Ok(Statement::Perform { name: parts[1].to_string() })
         }
         "compute" => {
             if parts.len() < 4 || parts[2].to_lowercase() != "=" {
@@ -437,13 +396,14 @@ fn parse_pic_clause(pic: &str) -> crate::ir::PicClause {
 
     let signed = upper.contains("S9");
 
-    let category = if upper.contains("X(") {
-        crate::ir::PicCategory::AlphaNumeric
-    } else if upper.contains("V") {
-        crate::ir::PicCategory::Decimal
-    } else {
-        crate::ir::PicCategory::Numeric
-    };
+    let category =
+        if upper.contains("X(") {
+            crate::ir::PicCategory::AlphaNumeric
+        } else if upper.contains("V") {
+            crate::ir::PicCategory::Decimal
+        } else {
+            crate::ir::PicCategory::Numeric
+        };
 
     let mut length = 0usize;
 
@@ -454,11 +414,15 @@ fn parse_pic_clause(pic: &str) -> crate::ir::PicClause {
         }
     }
 
-    let scale = if let Some(vpos) = upper.find("V") {
-        upper[vpos + 1..].chars().filter(|c| *c == '9').count()
-    } else {
-        0
-    };
+    let scale =
+        if let Some(vpos) = upper.find("V") {
+            upper[vpos + 1..]
+                .chars()
+                .filter(|c| *c == '9')
+                .count()
+        } else {
+            0
+        };
 
     crate::ir::PicClause {
         raw: pic.to_string(),
@@ -470,6 +434,7 @@ fn parse_pic_clause(pic: &str) -> crate::ir::PicClause {
 }
 
 fn detect_usage(line: &str) -> Option<crate::ir::UsageClause> {
+
     let upper = line.to_uppercase();
 
     if upper.contains("COMP-3") {
@@ -482,3 +447,4 @@ fn detect_usage(line: &str) -> Option<crate::ir::UsageClause> {
         Some(crate::ir::UsageClause::Display)
     }
 }
+

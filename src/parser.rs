@@ -1,4 +1,4 @@
-﻿use crate::ir::{Statement, Source};
+use crate::ir::{Source, Statement};
 
 pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     let input = input.trim();
