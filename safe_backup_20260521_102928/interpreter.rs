@@ -3,8 +3,11 @@ use std::collections::HashMap;
 use std::process::Command;
 
 pub trait LegacyRunner {
-    fn run(&self, code: &str, inputs: HashMap<String, i64>)
-        -> anyhow::Result<HashMap<String, i64>>;
+    fn run(
+        &self,
+        code: &str,
+        inputs: HashMap<String, i64>,
+    ) -> anyhow::Result<HashMap<String, i64>>;
 }
 
 pub struct CommandRunner {
@@ -88,7 +91,11 @@ impl Interpreter {
         self.functions.insert(func.name.clone(), func);
     }
 
-    pub fn run(&mut self, func_name: &str, inputs: HashMap<String, i64>) -> HashMap<String, i64> {
+    pub fn run(
+        &mut self,
+        func_name: &str,
+        inputs: HashMap<String, i64>,
+    ) -> HashMap<String, i64> {
         for (name, value) in inputs {
             self.vars.insert(name, value);
         }
@@ -118,7 +125,9 @@ impl Interpreter {
                 let src_value = match source {
                     crate::ir::Source::Literal(i) => *i,
                     crate::ir::Source::LiteralString(_) => 0,
-                    crate::ir::Source::Variable(v) => *self.vars.get(v).unwrap_or(&0),
+                    crate::ir::Source::Variable(v) => {
+                        *self.vars.get(v).unwrap_or(&0)
+                    }
                 };
 
                 self.vars.insert(target.clone(), src_value);
@@ -149,10 +158,12 @@ impl Interpreter {
                 }
             }
 
-            crate::ir::Statement::Display { value } => match value {
-                crate::ir::Literal::Int(i) => println!("{}", i),
-                crate::ir::Literal::String(s) => println!("{}", s),
-            },
+            crate::ir::Statement::Display { value } => {
+                match value {
+                    crate::ir::Literal::Int(i) => println!("{}", i),
+                    crate::ir::Literal::String(s) => println!("{}", s),
+                }
+            }
 
             crate::ir::Statement::Evaluate { .. } => {}
             crate::ir::Statement::String { .. } => {}
@@ -172,16 +183,6 @@ impl Interpreter {
             crate::ir::Statement::Continue => {}
             crate::ir::Statement::Exit => {}
             crate::ir::Statement::Inspect { .. } => {}
-
-            crate::ir::Statement::PerformUntil { condition, body } => {
-                while self.evaluate_condition(condition) {
-                    self.execute_block(body);
-                }
-            }
-
-            crate::ir::Statement::Call { program } => {
-                println!("CALL {}", program);
-            }
         }
     }
 

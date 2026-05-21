@@ -1,30 +1,20 @@
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
-    Add {
-        target: String,
-        value: i64,
-    },
-    Move {
-        source: Source,
-        target: String,
-    },
+    Add { target: String, value: i64 },
+    Move { source: Source, target: String },
     If {
         condition: Condition,
         then_branch: Vec<Statement>,
         else_branch: Option<Vec<Statement>>,
     },
-    Perform {
-        name: String,
-    },
+    Perform { name: String },
     While {
         condition: Condition,
         body: Vec<Statement>,
     },
-    Display {
-        value: Literal,
-    },
+    Display { value: Literal },
     Evaluate {
         subject: String,
         also_subject: Option<String>,
@@ -41,68 +31,22 @@ pub enum Statement {
         into: Vec<String>,
         pointer: Option<String>,
     },
-    Redefines {
-        name: String,
-        redefines: String,
-    },
-    Occurs {
-        name: String,
-        count: i64,
-    },
-    ConditionName {
-        name: String,
-        value: Literal,
-    },
-    Compute {
-        target: String,
-        expr: String,
-    },
-    OpenFile {
-        mode: FileMode,
-        name: String,
-    },
-    ReadFile {
-        file: String,
-        into: Option<String>,
-    },
-    WriteFile {
-        file: String,
-        from: Option<String>,
-    },
-    CloseFile {
-        name: String,
-    },
-    ArrayGet {
-        name: String,
-        index: i64,
-        target: String,
-    },
-    ArraySet {
-        name: String,
-        index: i64,
-        value: Source,
-    },
+    Redefines { name: String, redefines: String },
+    Occurs { name: String, count: i64 },
+    ConditionName { name: String, value: Literal },
+    Compute { target: String, expr: String },
+    OpenFile { mode: FileMode, name: String },
+    ReadFile { file: String, into: Option<String> },
+    WriteFile { file: String, from: Option<String> },
+    CloseFile { name: String },
+    ArrayGet { name: String, index: i64, target: String },
+    ArraySet { name: String, index: i64, value: Source },
     // New features
-    Accept {
-        target: String,
-    },
+    Accept { target: String },
     StopRun,
     Continue,
     Exit,
-    Inspect {
-        source: String,
-        target: String,
-        pattern: String,
-    },
-
-    PerformUntil {
-        condition: Condition,
-        body: Vec<Statement>,
-    },
-
-    Call {
-        program: String,
-    },
+    Inspect { source: String, target: String, pattern: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -195,3 +139,4 @@ pub enum UsageClause {
     Comp3,
     Binary,
 }
+

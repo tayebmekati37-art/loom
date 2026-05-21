@@ -1,9 +1,16 @@
-use crate::ir::{Function, Statement, Source, Literal, Condition, FileMode, WhenCondition, LiteralOrVariable, StringSource};
+use crate::ir::{
+    Condition, FileMode, Function, Literal, LiteralOrVariable, Source, Statement, StringSource,
+    WhenCondition,
+};
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
     let mut out = String::new();
-    writeln!(out, "fn translated_func() -> Result<(), Box<dyn std::error::Error>> {{").unwrap();
+    writeln!(
+        out,
+        "fn translated_func() -> Result<(), Box<dyn std::error::Error>> {{"
+    )
+    .unwrap();
     if function.body.is_empty() {
         writeln!(out, "    Ok(())").unwrap();
     } else {
@@ -29,8 +36,15 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             };
             writeln!(out, "{}{} = {};", indent, target, src_expr).unwrap();
         }
-        Statement::If { condition, then_branch, else_branch } => {
-            let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
+        Statement::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            let cond_str = format!(
+                "{} {} {}",
+                condition.left, condition.operator, condition.right
+            );
             writeln!(out, "{}if {} {{", indent, cond_str).unwrap();
             for stmt in then_branch {
                 translate_statement(stmt, out, &format!("{}    ", indent));
@@ -47,20 +61,25 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             writeln!(out, "{}{}();", indent, name).unwrap();
         }
         Statement::While { condition, body } => {
-            let cond_str = format!("{} {} {}", condition.left, condition.operator, condition.right);
+            let cond_str = format!(
+                "{} {} {}",
+                condition.left, condition.operator, condition.right
+            );
             writeln!(out, "{}while {} {{", indent, cond_str).unwrap();
             for stmt in body {
                 translate_statement(stmt, out, &format!("{}    ", indent));
             }
             writeln!(out, "{}}}", indent).unwrap();
         }
-        Statement::Display { value } => {
-            match value {
-                Literal::Int(i) => writeln!(out, "{}println!(\"{}\");", indent, i).unwrap(),
-                Literal::String(s) => writeln!(out, "{}println!(\"{}\");", indent, s).unwrap(),
-            }
-        }
-        Statement::Evaluate { subject, also_subject, when_clauses } => {
+        Statement::Display { value } => match value {
+            Literal::Int(i) => writeln!(out, "{}println!(\"{}\");", indent, i).unwrap(),
+            Literal::String(s) => writeln!(out, "{}println!(\"{}\");", indent, s).unwrap(),
+        },
+        Statement::Evaluate {
+            subject,
+            also_subject,
+            when_clauses,
+        } => {
             writeln!(out, "{}match {} {{", indent, subject).unwrap();
             for when in when_clauses {
                 let cond_str = match &when.condition {
@@ -81,7 +100,11 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             }
             writeln!(out, "{}}}", indent).unwrap();
         }
-        Statement::String { sources, into, pointer } => {
+        Statement::String {
+            sources,
+            into,
+            pointer,
+        } => {
             let mut parts = Vec::new();
             for src in sources {
                 let src_str = match &src.source {
@@ -99,7 +122,12 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                 writeln!(out, "{}// pointer {} not implemented", indent, ptr).unwrap();
             }
         }
-        Statement::Unstring { source, delimited_by, into, pointer } => {
+        Statement::Unstring {
+            source,
+            delimited_by,
+            into,
+            pointer,
+        } => {
             let delim = match delimited_by {
                 Some(d) => match d {
                     LiteralOrVariable::Literal(lit) => match lit {
@@ -111,14 +139,24 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                 None => " ".to_string(),
             };
             for (i, var) in into.iter().enumerate() {
-                writeln!(out, "{}{} = {}.split('{}').nth({}).unwrap_or(\"\").to_string();", indent, var, source, delim, i).unwrap();
+                writeln!(
+                    out,
+                    "{}{} = {}.split('{}').nth({}).unwrap_or(\"\").to_string();",
+                    indent, var, source, delim, i
+                )
+                .unwrap();
             }
             if let Some(ptr) = pointer {
                 writeln!(out, "{}// pointer {} not implemented", indent, ptr).unwrap();
             }
         }
         Statement::Redefines { name, redefines } => {
-            writeln!(out, "{}// REDEFINES {} {} not implemented", indent, name, redefines).unwrap();
+            writeln!(
+                out,
+                "{}// REDEFINES {} {} not implemented",
+                indent, name, redefines
+            )
+            .unwrap();
         }
         Statement::Occurs { name, count } => {
             writeln!(out, "{}let mut {} = vec![0; {}];", indent, name, count).unwrap();
@@ -147,7 +185,12 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
                 writeln!(out, "{}{}.read_to_string(&mut buffer)?;", indent, file).unwrap();
                 writeln!(out, "{}{} = buffer;", indent, into).unwrap();
             } else {
-                writeln!(out, "{}{}.read_to_string(&mut String::new())?;", indent, file).unwrap();
+                writeln!(
+                    out,
+                    "{}{}.read_to_string(&mut String::new())?;",
+                    indent, file
+                )
+                .unwrap();
             }
         }
         Statement::WriteFile { file, from } => {
@@ -160,7 +203,11 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::CloseFile { name } => {
             writeln!(out, "{}{}.sync_all()?;", indent, name).unwrap();
         }
-        Statement::ArrayGet { name, index, target } => {
+        Statement::ArrayGet {
+            name,
+            index,
+            target,
+        } => {
             writeln!(out, "{}{} = {}[{}];", indent, target, name, index).unwrap();
         }
         Statement::ArraySet { name, index, value } => {
@@ -174,7 +221,12 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         // New features
         Statement::Accept { target } => {
             writeln!(out, "{}let mut input = String::new();", indent).unwrap();
-            writeln!(out, "{}{} = std::io::stdin().read_line(&mut input).unwrap();", indent, target).unwrap();
+            writeln!(
+                out,
+                "{}{} = std::io::stdin().read_line(&mut input).unwrap();",
+                indent, target
+            )
+            .unwrap();
             writeln!(out, "{}{} = input.trim().parse().unwrap();", indent, target).unwrap();
         }
         Statement::StopRun => {
@@ -186,8 +238,17 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         Statement::Exit => {
             writeln!(out, "{}// EXIT (no-op)", indent).unwrap();
         }
-        Statement::Inspect { source, target, pattern } => {
-            writeln!(out, "{}{} = {}.matches('{}').count();", indent, target, source, pattern).unwrap();
+        Statement::Inspect {
+            source,
+            target,
+            pattern,
+        } => {
+            writeln!(
+                out,
+                "{}{} = {}.matches('{}').count();",
+                indent, target, source, pattern
+            )
+            .unwrap();
         }
         _ => {
             writeln!(out, "{}// {:?} not implemented", indent, stmt).unwrap();

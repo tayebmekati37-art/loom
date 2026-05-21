@@ -1,4 +1,4 @@
-use crate::ir::{Function, Statement, Source, Literal, Condition};
+use crate::ir::{Condition, Function, Literal, Source, Statement};
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
