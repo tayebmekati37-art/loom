@@ -43,7 +43,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 });
             }
             "MULT" => {
-                // Multiplication not yet implemented in IR Ã¢â‚¬â€œ emit a comment and ignore
+                // Multiplication not yet implemented in IR – emit a comment and ignore
                 eprintln!("MULT not implemented, ignoring: {}", line);
                 // Optionally, add a comment as a Display statement
                 let comment = format!("# MULT {} TO {} not implemented", tokens[1], tokens[3]);
@@ -52,7 +52,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 });
             }
             "DIV" => {
-                // Division not yet implemented Ã¢â‚¬â€œ emit a comment
+                // Division not yet implemented – emit a comment
                 eprintln!("DIV not implemented, ignoring: {}", line);
                 let comment = format!("# DIV {} TO {} not implemented", tokens[1], tokens[3]);
                 statements.push(Statement::Display {

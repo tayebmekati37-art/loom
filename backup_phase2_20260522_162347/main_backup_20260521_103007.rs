@@ -7,7 +7,6 @@ mod parser_cobol;
 mod parser_jcl;
 mod parser_pli;
 mod parser_rpg;
-mod pic_parser;
 mod translate_csharp;
 mod translate_dart;
 mod translate_go;
@@ -410,8 +409,6 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
             ir::Statement::StopRun => {}
             ir::Statement::Continue => {}
             ir::Statement::Exit => {}
-            ir::Statement::PerformUntil { .. } => {}
-            ir::Statement::Call { .. } => {}
             ir::Statement::Inspect { .. } => {}
         }
     }
