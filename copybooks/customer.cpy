@@ -1,0 +1,2 @@
+﻿       01 CUSTOMER-ID PIC 9(10).
+       01 CUSTOMER-NAME PIC X(30).

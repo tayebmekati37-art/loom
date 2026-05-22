@@ -7,7 +7,6 @@ mod parser_cobol;
 mod parser_jcl;
 mod parser_pli;
 mod parser_rpg;
-mod pic_parser;
 mod translate_csharp;
 mod translate_dart;
 mod translate_go;

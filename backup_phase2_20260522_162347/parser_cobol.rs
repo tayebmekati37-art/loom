@@ -18,44 +18,6 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
         }
         let lower = line.to_lowercase();
 
-        // COPYBOOK SUPPORT
-        if lower.starts_with("copy ") {
-            let copybook = line
-                .trim_end_matches(".")
-                .split_whitespace()
-                .nth(1)
-                .unwrap_or("");
-
-            let copy_paths = vec![
-                format!("copybooks/{}.cpy", copybook),
-                format!("copybooks/{}.cob", copybook),
-                format!("copybooks/{}", copybook),
-            ];
-
-            let mut found = false;
-
-            for path in copy_paths {
-                if std::path::Path::new(&path).exists() {
-                    let content = std::fs::read_to_string(&path)?;
-
-                    let nested = parse_program(&content)?;
-
-                    statements.extend(nested);
-
-                    found = true;
-
-                    break;
-                }
-            }
-
-            if !found {
-                eprintln!("WARNING: Copybook not found: {}", copybook);
-            }
-
-            i += 1;
-            continue;
-        }
-
         if lower.starts_with("procedure division") {
             in_procedure = true;
             i += 1;
@@ -287,7 +249,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 });
             }
             "unstring" => {
-                // Simple stub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ ignore for now
+                // Simple stub – ignore for now
                 eprintln!("UNSTRING not fully implemented, ignoring");
                 // Skip until end-unstring
                 while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-unstring")
@@ -376,7 +338,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
             }
             "inspect" => {
-                // Stub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ just add a comment as a Display statement
+                // Stub – just add a comment as a Display statement
                 let comment = format!("# INSPECT not implemented: {}", line);
                 statements.push(Statement::Display {
                     value: Literal::String(comment),

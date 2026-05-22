@@ -11,13 +11,6 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     let mut in_procedure = false;
 
     while i < lines.len() {
-        let line = lines[i].trim();
-        if line.is_empty() {
-            i += 1;
-            continue;
-        }
-        let lower = line.to_lowercase();
-
         // COPYBOOK SUPPORT
         if lower.starts_with("copy ") {
             let copybook = line
@@ -55,6 +48,13 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
             i += 1;
             continue;
         }
+
+        let line = lines[i].trim();
+        if line.is_empty() {
+            i += 1;
+            continue;
+        }
+        let lower = line.to_lowercase();
 
         if lower.starts_with("procedure division") {
             in_procedure = true;
@@ -112,6 +112,44 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 let mut else_branch = None;
                 let mut in_then = true;
                 while i < lines.len() {
+                    // COPYBOOK SUPPORT
+                    if lower.starts_with("copy ") {
+                        let copybook = line
+                            .trim_end_matches(".")
+                            .split_whitespace()
+                            .nth(1)
+                            .unwrap_or("");
+
+                        let copy_paths = vec![
+                            format!("copybooks/{}.cpy", copybook),
+                            format!("copybooks/{}.cob", copybook),
+                            format!("copybooks/{}", copybook),
+                        ];
+
+                        let mut found = false;
+
+                        for path in copy_paths {
+                            if std::path::Path::new(&path).exists() {
+                                let content = std::fs::read_to_string(&path)?;
+
+                                let nested = parse_program(&content)?;
+
+                                statements.extend(nested);
+
+                                found = true;
+
+                                break;
+                            }
+                        }
+
+                        if !found {
+                            eprintln!("WARNING: Copybook not found: {}", copybook);
+                        }
+
+                        i += 1;
+                        continue;
+                    }
+
                     let l = lines[i].trim();
                     if l.to_lowercase().starts_with("end-if") {
                         i += 1;
@@ -155,6 +193,44 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
                 let mut body = Vec::new();
                 while i < lines.len() {
+                    // COPYBOOK SUPPORT
+                    if lower.starts_with("copy ") {
+                        let copybook = line
+                            .trim_end_matches(".")
+                            .split_whitespace()
+                            .nth(1)
+                            .unwrap_or("");
+
+                        let copy_paths = vec![
+                            format!("copybooks/{}.cpy", copybook),
+                            format!("copybooks/{}.cob", copybook),
+                            format!("copybooks/{}", copybook),
+                        ];
+
+                        let mut found = false;
+
+                        for path in copy_paths {
+                            if std::path::Path::new(&path).exists() {
+                                let content = std::fs::read_to_string(&path)?;
+
+                                let nested = parse_program(&content)?;
+
+                                statements.extend(nested);
+
+                                found = true;
+
+                                break;
+                            }
+                        }
+
+                        if !found {
+                            eprintln!("WARNING: Copybook not found: {}", copybook);
+                        }
+
+                        i += 1;
+                        continue;
+                    }
+
                     let l = lines[i].trim();
                     if l.to_lowercase().starts_with("end-while") {
                         i += 1;
@@ -190,6 +266,44 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
                 let mut when_clauses = Vec::new();
                 while i < lines.len() {
+                    // COPYBOOK SUPPORT
+                    if lower.starts_with("copy ") {
+                        let copybook = line
+                            .trim_end_matches(".")
+                            .split_whitespace()
+                            .nth(1)
+                            .unwrap_or("");
+
+                        let copy_paths = vec![
+                            format!("copybooks/{}.cpy", copybook),
+                            format!("copybooks/{}.cob", copybook),
+                            format!("copybooks/{}", copybook),
+                        ];
+
+                        let mut found = false;
+
+                        for path in copy_paths {
+                            if std::path::Path::new(&path).exists() {
+                                let content = std::fs::read_to_string(&path)?;
+
+                                let nested = parse_program(&content)?;
+
+                                statements.extend(nested);
+
+                                found = true;
+
+                                break;
+                            }
+                        }
+
+                        if !found {
+                            eprintln!("WARNING: Copybook not found: {}", copybook);
+                        }
+
+                        i += 1;
+                        continue;
+                    }
+
                     let l = lines[i].trim();
                     if l.to_lowercase().starts_with("end-evaluate") {
                         i += 1;
@@ -210,6 +324,44 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                         i += 1;
                         let mut when_body = Vec::new();
                         while i < lines.len() {
+                            // COPYBOOK SUPPORT
+                            if lower.starts_with("copy ") {
+                                let copybook = line
+                                    .trim_end_matches(".")
+                                    .split_whitespace()
+                                    .nth(1)
+                                    .unwrap_or("");
+
+                                let copy_paths = vec![
+                                    format!("copybooks/{}.cpy", copybook),
+                                    format!("copybooks/{}.cob", copybook),
+                                    format!("copybooks/{}", copybook),
+                                ];
+
+                                let mut found = false;
+
+                                for path in copy_paths {
+                                    if std::path::Path::new(&path).exists() {
+                                        let content = std::fs::read_to_string(&path)?;
+
+                                        let nested = parse_program(&content)?;
+
+                                        statements.extend(nested);
+
+                                        found = true;
+
+                                        break;
+                                    }
+                                }
+
+                                if !found {
+                                    eprintln!("WARNING: Copybook not found: {}", copybook);
+                                }
+
+                                i += 1;
+                                continue;
+                            }
+
                             let bl = lines[i].trim();
                             if bl.is_empty() {
                                 i += 1;
@@ -242,6 +394,44 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 let mut parts_vec = vec![first];
                 i += 1;
                 while i < lines.len() {
+                    // COPYBOOK SUPPORT
+                    if lower.starts_with("copy ") {
+                        let copybook = line
+                            .trim_end_matches(".")
+                            .split_whitespace()
+                            .nth(1)
+                            .unwrap_or("");
+
+                        let copy_paths = vec![
+                            format!("copybooks/{}.cpy", copybook),
+                            format!("copybooks/{}.cob", copybook),
+                            format!("copybooks/{}", copybook),
+                        ];
+
+                        let mut found = false;
+
+                        for path in copy_paths {
+                            if std::path::Path::new(&path).exists() {
+                                let content = std::fs::read_to_string(&path)?;
+
+                                let nested = parse_program(&content)?;
+
+                                statements.extend(nested);
+
+                                found = true;
+
+                                break;
+                            }
+                        }
+
+                        if !found {
+                            eprintln!("WARNING: Copybook not found: {}", copybook);
+                        }
+
+                        i += 1;
+                        continue;
+                    }
+
                     let l = lines[i].trim();
                     if l.to_lowercase().starts_with("end-string") {
                         i += 1;
@@ -287,7 +477,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 });
             }
             "unstring" => {
-                // Simple stub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ ignore for now
+                // Simple stub â€“ ignore for now
                 eprintln!("UNSTRING not fully implemented, ignoring");
                 // Skip until end-unstring
                 while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-unstring")
@@ -376,7 +566,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
             }
             "inspect" => {
-                // Stub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ just add a comment as a Display statement
+                // Stub â€“ just add a comment as a Display statement
                 let comment = format!("# INSPECT not implemented: {}", line);
                 statements.push(Statement::Display {
                     value: Literal::String(comment),
