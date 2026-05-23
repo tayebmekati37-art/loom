@@ -1,0 +1,19 @@
+﻿       IDENTIFICATION DIVISION.
+       PROGRAM-ID. INVENTORY.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+
+       01 ITEM-COUNT PIC 9(4).
+       01 INDEX-VAR PIC 9(2).
+
+       PROCEDURE DIVISION.
+
+           MOVE 0 TO ITEM-COUNT
+
+           PERFORM UNTIL ITEM-COUNT > 10
+               ADD 1 TO ITEM-COUNT
+           END-PERFORM
+
+           DISPLAY ITEM-COUNT
+           STOP RUN.
