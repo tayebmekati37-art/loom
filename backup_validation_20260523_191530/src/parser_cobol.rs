@@ -1,4 +1,4 @@
-﻿use crate::ir::{
+use crate::ir::{
     Condition, FileMode, Literal, LiteralOrVariable, Source, Statement, StringSource, WhenClause,
     WhenCondition,
 };
@@ -287,7 +287,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 });
             }
             "unstring" => {
-                // Simple stub ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ ignore for now
+                // Simple stub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ ignore for now
                 eprintln!("UNSTRING not fully implemented, ignoring");
                 // Skip until end-unstring
                 while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-unstring")
@@ -376,7 +376,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
             }
             "inspect" => {
-                // Stub ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ just add a comment as a Display statement
+                // Stub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ just add a comment as a Display statement
                 let comment = format!("# INSPECT not implemented: {}", line);
                 statements.push(Statement::Display {
                     value: Literal::String(comment),
@@ -520,4 +520,3 @@ fn detect_usage(line: &str) -> Option<crate::ir::UsageClause> {
         Some(crate::ir::UsageClause::Display)
     }
 }
-
