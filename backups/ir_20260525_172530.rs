@@ -101,9 +101,8 @@ pub enum Statement {
     },
 
     Call {
-    program: String,
-    using_args: Vec<String>,
-},
+        program: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,33 +163,6 @@ pub enum FileMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VariableDefinition {
-    pub name: String,
-    pub pic: Option<PicType>,
-    pub occurs: Option<usize>,
-    pub redefines: Option<String>,
-    pub initial_value: Option<Literal>,
-    pub comp_type: Option<CompType>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PicType {
-    Integer,
-    SignedInteger,
-    Decimal { scale: usize },
-    String { length: usize },
-    Alpha { length: usize },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum CompType {
-    Comp,
-    Comp1,
-    Comp2,
-    Comp3,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataField {
     pub level: u32,
     pub name: String,
@@ -223,4 +195,3 @@ pub enum UsageClause {
     Comp3,
     Binary,
 }
-
