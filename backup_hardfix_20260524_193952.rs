@@ -1,4 +1,4 @@
-use crate::ir::{
+﻿use crate::ir::{
     Condition, FileMode, Literal, LiteralOrVariable, Source, Statement, StringSource, WhenClause,
     WhenCondition,
 };
@@ -144,22 +144,20 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     if parts.len() >= 3 &&
        parts[1].to_lowercase() == "until" {
 
-        let condition_string =
-            parts[2..].join(" ");
+        let condition = parts[2..].join(" ");
 
-        return Ok(Statement::PerformUntil {
-            condition: Condition::Raw(condition_string),
-            body: Vec::new(),
-        });
+        statements.push(
+            Statement::PerformUntil {
+                condition,
+                body: vec![],
+            }
+        );
+
+        continue;
     }
 
     anyhow::bail!("Invalid PERFORM: {}", line);
-}
-                statements.push(Statement::Perform {
-                    name: parts[1].to_string(),
-                });
-                i += 1;
-            }
+},
             "while" => {
                 let after_while = line.strip_prefix("while").unwrap().trim();
                 let condition_str = after_while.strip_suffix("do").unwrap_or(after_while).trim();
@@ -299,7 +297,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 });
             }
             "unstring" => {
-                // Simple stub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ ignore for now
+                // Simple stub ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ ignore for now
                 eprintln!("UNSTRING not fully implemented, ignoring");
                 // Skip until end-unstring
                 while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-unstring")
@@ -388,7 +386,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
             }
             "inspect" => {
-                // Stub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ just add a comment as a Display statement
+                // Stub ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ just add a comment as a Display statement
                 let comment = format!("# INSPECT not implemented: {}", line);
                 statements.push(Statement::Display {
                     value: Literal::String(comment),
@@ -450,17 +448,18 @@ fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
             Ok(Statement::Display { value: lit })
         }
         "perform" => {
+    if parts.len() >= 3 && parts[1].to_lowercase() == "until" {
 
-    if parts.len() >= 3 &&
-       parts[1].to_lowercase() == "until" {
+        let condition = parts[2..].join(" ");
 
-        let condition_string =
-            parts[2..].join(" ");
+        statements.push(
+            Statement::PerformUntil {
+                condition,
+                body: vec![],
+            }
+        );
 
-        return Ok(Statement::PerformUntil {
-            condition: Condition::Raw(condition_string),
-            body: Vec::new(),
-        });
+        continue;
     }
 
     anyhow::bail!("Invalid PERFORM: {}", line);
@@ -544,5 +543,6 @@ fn detect_usage(line: &str) -> Option<crate::ir::UsageClause> {
         Some(crate::ir::UsageClause::Display)
     }
 }
+
 
 
