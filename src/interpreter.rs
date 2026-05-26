@@ -179,7 +179,7 @@ impl Interpreter {
                 }
             }
 
-            crate::ir::Statement::Call { program } => {
+            crate::ir::Statement::Call { program, .. } => {
                 println!("CALL {}", program);
             }
         }
@@ -196,3 +196,5 @@ impl Interpreter {
         }
     }
 }
+
+

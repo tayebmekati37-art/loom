@@ -1,4 +1,4 @@
-﻿use crate::ir::{
+use crate::ir::{
     Condition, FileMode, Literal, LiteralOrVariable, Source, Statement, StringSource, WhenClause,
     WhenCondition,
 };
@@ -155,25 +155,11 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
 
     anyhow::bail!("Invalid PERFORM: {}", line);
 }
-                "perform" => {
-    if parts.len() >= 3 && parts[1].to_lowercase() == "until" {
-        let condition = parts[2..].join(" ");
-
-        statements.push(Statement::PerformUntil {
-            condition: Condition::Raw(condition),
-            body: Vec::new(),
-        });
-
-    } else if parts.len() >= 2 {
-
-        statements.push(Statement::Perform {
-            name: parts[1].to_string(),
-        });
-
-    } else {
-        anyhow::bail!("Invalid PERFORM: {}", line);
-    }
-}
+                statements.push(Statement::Perform {
+                    name: parts[1].to_string(),
+                });
+                i += 1;
+            }
             "while" => {
                 let after_while = line.strip_prefix("while").unwrap().trim();
                 let condition_str = after_while.strip_suffix("do").unwrap_or(after_while).trim();
@@ -313,7 +299,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 });
             }
             "unstring" => {
-                // Simple stub Ã¢â‚¬â€œ ignore for now
+                // Simple stub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ ignore for now
                 eprintln!("UNSTRING not fully implemented, ignoring");
                 // Skip until end-unstring
                 while i < lines.len() && !lines[i].trim().to_lowercase().starts_with("end-unstring")
@@ -402,7 +388,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 i += 1;
             }
             "inspect" => {
-                // Stub Ã¢â‚¬â€œ just add a comment as a Display statement
+                // Stub ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ just add a comment as a Display statement
                 let comment = format!("# INSPECT not implemented: {}", line);
                 statements.push(Statement::Display {
                     value: Literal::String(comment),
@@ -419,101 +405,80 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
         }
     }
     Ok(statements)
+}
 
-
-fn parse_statement(line: &str) -> anyhow::Result<Statement> {
+fn parse_single_statement(line: &str) -> Result<Statement, anyhow::Error> {
     let parts: Vec<&str> = line.split_whitespace().collect();
-
     if parts.is_empty() {
         anyhow::bail!("Empty statement");
     }
-
     match parts[0].to_lowercase().as_str() {
-
-    "move" => {
-        if parts.len() < 4 {
-            anyhow::bail!("Invalid MOVE: {}", line);
+        "move" => {
+            if parts.len() < 4 || parts[2].to_lowercase() != "to" {
+                anyhow::bail!("Invalid MOVE: {}", line);
+            }
+            let source = if let Ok(num) = parts[1].parse::<i64>() {
+                Source::Literal(num)
+            } else if parts[1].starts_with('\'') {
+                let s = parts[1];
+                Source::LiteralString(s[1..s.len() - 1].to_string())
+            } else {
+                Source::Variable(parts[1].to_string())
+            };
+            Ok(Statement::Move {
+                source,
+                target: parts[3].to_string(),
+            })
         }
-
-        Ok(Statement::Move {
-            source: parts[1].to_string(),
-            target: parts[3].to_string(),
-        })
-    }
-
-    "display" => {
-        if parts.len() < 2 {
-            anyhow::bail!("Invalid DISPLAY: {}", line);
+        "add" => {
+            if parts.len() < 4 || parts[2].to_lowercase() != "to" {
+                anyhow::bail!("Invalid ADD: {}", line);
+            }
+            let value = parts[1].parse::<i64>()?;
+            Ok(Statement::Add {
+                target: parts[3].to_string(),
+                value,
+            })
         }
-
-        Ok(Statement::Display {
-            value: parts[1..].join(" "),
-        })
-    }
-
-    "add" => {
-        if parts.len() < 4 {
-            anyhow::bail!("Invalid ADD: {}", line);
+        "display" => {
+            let lit_str = parts[1..].join(" ");
+            let lit = if let Ok(num) = lit_str.parse::<i64>() {
+                Literal::Int(num)
+            } else {
+                Literal::String(lit_str.trim_matches('\'').to_string())
+            };
+            Ok(Statement::Display { value: lit })
         }
+        "perform" => {
 
-        Ok(Statement::Add {
-            source: parts[1].to_string(),
-            target: parts[3].to_string(),
-        })
+    if parts.len() >= 3 &&
+       parts[1].to_lowercase() == "until" {
+
+        let condition_string =
+            parts[2..].join(" ");
+
+        return Ok(Statement::PerformUntil {
+            condition: Condition::Raw(condition_string),
+            body: Vec::new(),
+        });
     }
 
-    "subtract" => {
-        if parts.len() < 4 {
-            anyhow::bail!("Invalid SUBTRACT: {}", line);
-        }
-
-        Ok(Statement::Subtract {
-            source: parts[1].to_string(),
-            target: parts[3].to_string(),
-        })
-    }
-
-    "perform" => {
-
-        // PERFORM UNTIL
-        if parts.len() >= 3 && parts[1].to_lowercase() == "until" {
-
-            return Ok(Statement::PerformUntil {
-                condition: parts[2..].join(" "),
-                body: Vec::new(),
-            });
-        }
-
-        // NORMAL PERFORM
-        if parts.len() < 2 {
-            anyhow::bail!("Invalid PERFORM: {}", line);
-        }
-
-        Ok(Statement::Perform {
-            name: parts[1].to_string(),
-        })
-    }
-
-    "call" => {
-
-        if parts.len() < 2 {
-            anyhow::bail!("Invalid CALL: {}", line);
-        }
-
-        Ok(Statement::Call {
-            program: parts[1].replace("\"", ""),
-            using_args: Vec::new(),
-        })
-    }
-
-    "stop" => {
-        Ok(Statement::StopRun)
-    }
-
-    _ => {
-        anyhow::bail!("Unknown statement: {}", line);
-    }
+    anyhow::bail!("Invalid PERFORM: {}", line);
 }
+            Ok(Statement::Perform {
+                name: parts[1].to_string(),
+            })
+        }
+        "compute" => {
+            if parts.len() < 4 || parts[2].to_lowercase() != "=" {
+                anyhow::bail!("Invalid COMPUTE: {}", line);
+            }
+            let target = parts[1].to_string();
+            let expr = parts[3..].join(" ");
+            Ok(Statement::Compute { target, expr })
+        }
+        _ => anyhow::bail!("Unsupported statement in block: {}", line),
+    }
 }
 
 fn parse_condition_str(s: &str) -> Result<Condition, anyhow::Error> {
@@ -579,9 +544,5 @@ fn detect_usage(line: &str) -> Option<crate::ir::UsageClause> {
         Some(crate::ir::UsageClause::Display)
     }
 }
-
-}
-
-
 
 

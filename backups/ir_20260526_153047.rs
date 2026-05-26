@@ -175,18 +175,19 @@ pub struct VariableDefinition {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PicType {
-    Numeric,
-    SignedNumeric,
-    Decimal,
-    AlphaNumeric,
-    String,
+    Integer,
+    SignedInteger,
+    Decimal { scale: usize },
+    String { length: usize },
+    Alpha { length: usize },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CompType {
     Comp,
+    Comp1,
+    Comp2,
     Comp3,
-    Binary,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -222,7 +223,4 @@ pub enum UsageClause {
     Comp3,
     Binary,
 }
-
-
-
 
