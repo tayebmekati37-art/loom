@@ -24,7 +24,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
                 let left_op = right[..plus_pos].trim();
                 let right_op = right[plus_pos + 1..].trim();
                 // Only handle addition of literals or variables for now
-                if let (Ok(value), Ok(_)) = (left_op.parse::<i64>(), right_op.parse::<i64>()) {
+                if let (Ok(_value), Ok(_)) = (left_op.parse::<i64>(), right_op.parse::<i64>()) {
                     // Not a simple case; fallback to just moving the result? Actually, we need to parse properly.
                     // Simpler: treat as Add statement
                     let target = left.to_string();
