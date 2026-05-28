@@ -1,5 +1,5 @@
 use crate::ir::{
-    Condition, FileMode, Function, Literal, LiteralOrVariable, Source, Statement, StringSource,
+    FileMode, Function, Literal, LiteralOrVariable, Source, Statement,
     WhenCondition,
 };
 use std::fmt::Write;
