@@ -16,7 +16,10 @@ fn packed_decimal_parses() {
 
     let result = parse_program(cobol);
 
-    assert!(result.is_ok());
+    match result {
+    Ok(v) => println!("{:#?}", v),
+    Err(e) => panic!("Parse failed: {:?}", e),
+}
 }
 
 #[test]

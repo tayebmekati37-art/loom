@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
+    NoOp,
     Add {
         target: String,
         value: i64,
@@ -176,17 +177,15 @@ pub struct VariableDefinition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PicType {
     Numeric,
-    SignedNumeric,
     Decimal,
-    AlphaNumeric,
-    String,
+    PackedDecimal,
+    Alpha,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CompType {
     Comp,
     Comp3,
-    Binary,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

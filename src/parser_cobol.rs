@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use crate::ir::*;
 
 pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
@@ -8,11 +8,26 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
 
         let line = raw_line.trim();
 
+        // Skip empty lines
         if line.is_empty() {
             continue;
         }
 
+        // Skip comments
         if line.starts_with("*") {
+            continue;
+        }
+
+        // Skip COBOL divisions / metadata
+        if line.starts_with("IDENTIFICATION DIVISION")
+            || line.starts_with("ENVIRONMENT DIVISION")
+            || line.starts_with("DATA DIVISION")
+            || line.starts_with("PROCEDURE DIVISION")
+            || line.starts_with("WORKING-STORAGE SECTION")
+            || line.starts_with("PROGRAM-ID")
+            || line.starts_with("AUTHOR")
+            || line.starts_with("DATE-WRITTEN")
+        {
             continue;
         }
 
@@ -25,6 +40,11 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
 }
 
 fn parse_statement(line: &str) -> Result<Statement> {
+
+    // Ignore PIC declarations
+    if line.contains("PIC") {
+        return Ok(Statement::NoOp);
+    }
 
     let clean = line.replace(".", "");
     let parts: Vec<&str> = clean.split_whitespace().collect();
@@ -152,5 +172,3 @@ fn parse_statement(line: &str) -> Result<Statement> {
         }
     }
 }
-
-
