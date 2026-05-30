@@ -109,20 +109,24 @@ impl Interpreter {
 
     fn execute_statement(&mut self, stmt: &crate::ir::Statement) {
         match stmt {
-            crate::ir::Statement::Add { target, value } => {
-                let current = *self.vars.get(target).unwrap_or(&0);
-                self.vars.insert(target.clone(), current + value);
-            }
+    crate::ir::Statement::NoOp => {}
 
-            crate::ir::Statement::Move { source, target } => {
-                let src_value = match source {
-                    crate::ir::Source::Literal(i) => *i,
-                    crate::ir::Source::LiteralString(_) => 0,
-                    crate::ir::Source::Variable(v) => *self.vars.get(v).unwrap_or(&0),
-                };
+    crate::ir::Statement::Add { target, value } => {
+        let current = *self.vars.get(target).unwrap_or(&0);
+        self.vars.insert(target.clone(), current + value);
+    }
 
-                self.vars.insert(target.clone(), src_value);
-            }
+    crate::ir::Statement::Move { source, target } => {
+        let src_value = match source {
+            crate::ir::Source::Literal(i) => *i,
+            crate::ir::Source::LiteralString(_) => 0,
+            crate::ir::Source::Variable(v) => *self.vars.get(v).unwrap_or(&0),
+        };
+
+        self.vars.insert(target.clone(), src_value);
+    }
+
+    // rest of your existing arms...
 
             crate::ir::Statement::If {
                 condition,

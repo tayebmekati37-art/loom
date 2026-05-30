@@ -1,4 +1,4 @@
-mod interpreter;
+﻿mod interpreter;
 mod ir;
 mod migration;
 mod parser;
@@ -396,7 +396,7 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
             ir::Statement::Compute { target, .. } => {
                 set.insert(target.clone());
             }
-
+            ir::Statement::NoOp => {}
             ir::Statement::Redefines { .. } => {}
             ir::Statement::Occurs { .. } => {}
             ir::Statement::ConditionName { .. } => {}
