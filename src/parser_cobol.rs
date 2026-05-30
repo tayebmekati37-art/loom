@@ -40,7 +40,6 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
 }
 
 fn parse_statement(line: &str) -> Result<Statement> {
-
     // Ignore PIC declarations
     if line.contains("PIC") {
         return Ok(Statement::NoOp);
@@ -163,7 +162,13 @@ fn parse_statement(line: &str) -> Result<Statement> {
                 }
             )
         }
-
+        "stop" => {
+    if parts.len() >= 2 && parts[1].to_lowercase() == "run" {
+        Ok(Statement::NoOp)
+    } else {
+        anyhow::bail!("Invalid STOP statement");
+    }
+}
         _ => {
             anyhow::bail!(
                 "Unknown statement: {}",
