@@ -1,0 +1,8 @@
+************************************* Invoked: Mon Jun 1 19:33:58 2026
+[0] Arguments: C:\Users\tayeb\AppData\Local\Temp\msys2.exe, install, --confirm-command, --accept-messages, --root, C:\msys64
+[23] Operations sanity check succeeded.
+[42] Using metadata cache from "C:/Users/tayeb/AppData/Local/cache\\qt-installer-framework\\d75f1c19-3379-3717-ae8d-1404b51494a9"
+[43] Found 0 cached items.
+[78] Loaded control script ":/metadata/installer-config/control_js.js"
+[79] TargetDirectoryInUse : Error : The directory you selected already exists and contains an installation. Choose a different target for installation.
+[79] Answer: "Ok"
