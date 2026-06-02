@@ -49,6 +49,15 @@ let line = line.as_str();
 }
 
 fn parse_statement(line: &str) -> Result<Statement> {
+
+
+    let upper = line.trim().to_uppercase();
+
+    if upper.starts_with("END-") {
+        return Ok(Statement::NoOp);
+    }
+
+   
     // Ignore PIC declarations
     if line.to_uppercase().contains("PIC ") {
         return Ok(Statement::NoOp);
@@ -147,7 +156,14 @@ fn parse_statement(line: &str) -> Result<Statement> {
                 anyhow::bail!("Invalid STOP statement");
             }
         }
-
+        "compute" => {
+            return Ok(Statement::Display {
+             value: Literal::String("COMPUTE".to_string())
+          });
+       }
+       "end-perform" => {
+             Ok(Statement::NoOp)
+       }
         _ => {
             anyhow::bail!("Unknown statement: {}", line)
         }
