@@ -1,16 +1,13 @@
-use anyhow::Result;
 use crate::ir::*;
+use anyhow::Result;
 
 pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
     let mut statements = Vec::new();
 
     for raw_line in input.lines() {
-        let line = raw_line
-    .replace('\u{feff}', "")
-    .trim()
-    .to_string();
+        let line = raw_line.replace('\u{feff}', "").trim().to_string();
 
-let line = line.as_str();
+        let line = line.as_str();
         // Skip empty lines
         if line.is_empty() {
             continue;
@@ -49,15 +46,12 @@ let line = line.as_str();
 }
 
 fn parse_statement(line: &str) -> Result<Statement> {
-
-
     let upper = line.trim().to_uppercase();
 
     if upper.starts_with("END-") {
         return Ok(Statement::NoOp);
     }
 
-   
     // Ignore PIC declarations
     if line.to_uppercase().contains("PIC ") {
         return Ok(Statement::NoOp);
@@ -158,16 +152,12 @@ fn parse_statement(line: &str) -> Result<Statement> {
         }
         "compute" => {
             return Ok(Statement::Display {
-             value: Literal::String("COMPUTE".to_string())
-          });
-       }
-       "end-perform" => {
-             Ok(Statement::NoOp)
-       }
+                value: Literal::String("COMPUTE".to_string()),
+            });
+        }
+        "end-perform" => Ok(Statement::NoOp),
         _ => {
             anyhow::bail!("Unknown statement: {}", line)
         }
     }
 }
-
-
