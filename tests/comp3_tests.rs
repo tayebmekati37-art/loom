@@ -1,4 +1,4 @@
-﻿use loom::parser_cobol::parse_program;
+use loom::parser_cobol::parse_program;
 
 #[test]
 fn packed_decimal_parses() {
@@ -17,9 +17,9 @@ fn packed_decimal_parses() {
     let result = parse_program(cobol);
 
     match result {
-    Ok(v) => println!("{:#?}", v),
-    Err(e) => panic!("Parse failed: {:?}", e),
-}
+        Ok(v) => println!("{:#?}", v),
+        Err(e) => panic!("Parse failed: {:?}", e),
+    }
 }
 
 #[test]
@@ -39,4 +39,3 @@ fn decimal_pic_parses() {
 
     assert!(result.is_ok());
 }
-

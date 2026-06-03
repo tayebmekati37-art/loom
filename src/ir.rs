@@ -102,9 +102,9 @@ pub enum Statement {
     },
 
     Call {
-    program: String,
-    using_args: Vec<String>,
-},
+        program: String,
+        using_args: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -221,7 +221,3 @@ pub enum UsageClause {
     Comp3,
     Binary,
 }
-
-
-
-

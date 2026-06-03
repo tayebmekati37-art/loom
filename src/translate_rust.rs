@@ -1,7 +1,4 @@
-use crate::ir::{
-    FileMode, Function, Literal, LiteralOrVariable, Source, Statement,
-    WhenCondition,
-};
+use crate::ir::{FileMode, Function, Literal, LiteralOrVariable, Source, Statement, WhenCondition};
 use std::fmt::Write;
 
 pub fn translate(function: &Function) -> String {
