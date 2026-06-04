@@ -35,3 +35,4 @@ pub fn parse_comp(line: &str) -> Option<CompType> {
 
     None
 }
+

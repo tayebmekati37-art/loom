@@ -36,7 +36,7 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
             continue;
         }
 
-        println!("LINE=[{}]", line);
+        
 
         let stmt = parse_statement(line)?;
         statements.push(stmt);
@@ -161,3 +161,4 @@ fn parse_statement(line: &str) -> Result<Statement> {
         }
     }
 }
+
