@@ -1,4 +1,4 @@
-﻿mod interpreter;
+mod interpreter;
 mod ir;
 mod migration;
 mod parser;
@@ -416,3 +416,4 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
         }
     }
 }
+
