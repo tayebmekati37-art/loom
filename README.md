@@ -14,7 +14,7 @@
 
 | Area | Description |
 |------|-------------|
-| **Legacy languages** | Simple (custom), COBOL, RPG, PL/I – easily add more via hand-written or pest grammars |
+| **Legacy languages** |  COBOL, RPG, PL/I – easily add more via hand-written or pest grammars |
 | **Target languages** | 11 modern languages: Python, JavaScript, C#, Go, Rust, TypeScript, Kotlin, Swift, Zig, Nim, Dart |
 | **Statements** | `ADD`, `MOVE`, `IF`/`ELSE`, `PERFORM` (subroutines), `WHILE` loops, `DISPLAY`, `EVALUATE`, file I/O (`OPEN`, `READ`, `WRITE`, `CLOSE`) |
 | **Validation** | Built-in interpreter compares legacy vs. translated output; can record/load test cases |
