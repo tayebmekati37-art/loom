@@ -151,10 +151,19 @@ fn parse_statement(line: &str) -> Result<Statement> {
             }
         }
         "compute" => {
-            return Ok(Statement::Display {
-                value: Literal::String("COMPUTE".to_string()),
-            });
-        }
+    if parts.len() < 4 {
+        anyhow::bail!("Invalid COMPUTE");
+    }
+
+    let target = parts[1].to_string();
+
+    let expression = parts[3..].join(" ");
+
+    Ok(Statement::Compute {
+        target,
+        expression,
+    })
+}
         "end-perform" => Ok(Statement::NoOp),
         _ => {
             anyhow::bail!("Unknown statement: {}", line)
