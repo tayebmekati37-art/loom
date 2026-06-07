@@ -37,14 +37,61 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
         }
 
         
-
+        if parse_variable_definition(line).is_some() {
+    continue;
+}
         let stmt = parse_statement(line)?;
         statements.push(stmt);
     }
 
     Ok(statements)
 }
+fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
+    let clean = line.replace(".", "");
+    let parts: Vec<&str> = clean.split_whitespace().collect();
 
+    if parts.len() < 4 {
+        return None;
+    }
+
+    if parts[0] != "01" {
+        return None;
+    }
+
+    if !parts[2].eq_ignore_ascii_case("PIC") {
+        return None;
+    }
+
+    let name = parts[1].to_string();
+
+    let pic_text = parts[3].to_uppercase();
+
+    let pic = if pic_text.contains('V') {
+        Some(PicType::Decimal)
+    } else if pic_text.contains('9') {
+        Some(PicType::Numeric)
+    } else {
+        Some(PicType::Alpha)
+    };
+
+    let comp_type =
+        if clean.to_uppercase().contains("COMP-3") {
+            Some(CompType::Comp3)
+        } else if clean.to_uppercase().contains("COMP") {
+            Some(CompType::Comp)
+        } else {
+            None
+        };
+
+    Some(VariableDefinition {
+        name,
+        pic,
+        occurs: None,
+        redefines: None,
+        initial_value: None,
+        comp_type,
+    })
+}
 fn parse_statement(line: &str) -> Result<Statement> {
     let upper = line.trim().to_uppercase();
 
@@ -157,12 +204,12 @@ fn parse_statement(line: &str) -> Result<Statement> {
 
     let target = parts[1].to_string();
 
-    let expression = parts[3..].join(" ");
+   let expr = parts[3..].join(" ");
 
-    Ok(Statement::Compute {
-        target,
-        expression,
-    })
+Ok(Statement::Compute {
+    target,
+    expr,
+})
 }
         "end-perform" => Ok(Statement::NoOp),
         _ => {
