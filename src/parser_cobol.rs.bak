@@ -1,7 +1,7 @@
 use crate::ir::*;
 use anyhow::Result;
 
-pub fn parse_program(input: &str) -> Result<Program> {
+pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
     let mut statements = Vec::new();
     let mut variables = Vec::new();
 
@@ -221,6 +221,5 @@ Ok(Statement::Compute {
         }
     }
 }
-
 
 

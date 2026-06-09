@@ -57,7 +57,7 @@ pub enum Statement {
     Compute {
     target: String,
     expr: Expression,
-    },
+    }
     OpenFile {
         mode: FileMode,
         name: String,
@@ -228,4 +228,3 @@ pub struct Program {
     pub variables: Vec<VariableDefinition>,
     pub statements: Vec<Statement>,
 }
-
