@@ -164,17 +164,6 @@ pub enum FileMode {
     IO,
 }
 
-#[derive(Debug, Clone)]
-Some(
-    VariableDefinition {
-        name,
-        pic: None,
-        occurs: None,
-        redefines: None,
-        initial_value: None,
-        comp_type: usage,
-    }
-)
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PicType {
