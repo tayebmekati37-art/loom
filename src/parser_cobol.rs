@@ -1,9 +1,9 @@
 use crate::ir::*;
 use anyhow::Result;
 
-pub fn parse_program(input: &str) -> Result<Program> {
+pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
     let mut statements = Vec::new();
-    let mut variables = Vec::new();
+    let mut variables: Vec<crate::ir::VariableDefinition> = Vec::new();
 
     for raw_line in input.lines() {
         let line = raw_line.replace('\u{feff}', "").trim().to_string();
@@ -45,10 +45,8 @@ pub fn parse_program(input: &str) -> Result<Program> {
         statements.push(stmt);
     }
 
-    Ok(Program {
-        variables,
-        statements,
-    })
+    Ok(statements)
+    
 }
 fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
     let clean = line.replace(".", "");
@@ -221,6 +219,5 @@ Ok(Statement::Compute {
         }
     }
 }
-
 
 
