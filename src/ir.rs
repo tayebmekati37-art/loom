@@ -56,7 +56,7 @@ pub enum Statement {
     },
     Compute {
     target: String,
-    expr: Expression,
+    expr: String,
     },
     OpenFile {
         mode: FileMode,
@@ -165,6 +165,7 @@ pub enum FileMode {
 }
 
 
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PicType {
     Numeric,
@@ -204,6 +205,16 @@ pub enum PicCategory {
     AlphaNumeric,
     Decimal,
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Expression {
+    Literal(i64),
+    Variable(String),
+    Binary {
+        left: String,
+        op: String,
+        right: String,
+    },
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum UsageClause {
@@ -212,9 +223,18 @@ pub enum UsageClause {
     Comp3,
     Binary,
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VariableDefinition {
+    pub name: String,
+    pub pic: Option<PicType>,
+    pub occurs: Option<usize>,
+    pub redefines: Option<String>,
+    pub initial_value: Option<Literal>,
+    pub comp_type: Option<CompType>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Program {
     pub variables: Vec<VariableDefinition>,
     pub statements: Vec<Statement>,
 }
-
