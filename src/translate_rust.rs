@@ -252,4 +252,3 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         }
     }
 }
-

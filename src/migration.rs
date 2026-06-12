@@ -72,4 +72,3 @@ impl StranglerFig {
         code
     }
 }
-

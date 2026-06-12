@@ -55,8 +55,8 @@ pub enum Statement {
         value: Literal,
     },
     Compute {
-    target: String,
-    expr: String,
+        target: String,
+        expr: String,
     },
     OpenFile {
         mode: FileMode,
@@ -163,8 +163,6 @@ pub enum FileMode {
     Output,
     IO,
 }
-
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PicType {
