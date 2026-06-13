@@ -79,4 +79,3 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>, anyhow::Error> {
     }
     Ok(statements)
 }
-

@@ -6,4 +6,3 @@ pub fn translate(_function: &Function) -> String {
     writeln!(out, "// Translation not implemented for this language").unwrap();
     out
 }
-

@@ -20,4 +20,3 @@ pub mod translate_rust;
 pub mod translate_swift;
 pub mod translate_typescript;
 pub mod translate_zig;
-

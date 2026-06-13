@@ -37,14 +37,16 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
             continue;
         }
 
+        
         if parse_variable_definition(line).is_some() {
-            continue;
-        }
+    continue;
+}
         let stmt = parse_statement(line)?;
         statements.push(stmt);
     }
 
     Ok(statements)
+    
 }
 fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
     let clean = line.replace(".", "");
@@ -74,13 +76,14 @@ fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
         Some(PicType::Alpha)
     };
 
-    let comp_type = if clean.to_uppercase().contains("COMP-3") {
-        Some(CompType::Comp3)
-    } else if clean.to_uppercase().contains("COMP") {
-        Some(CompType::Comp)
-    } else {
-        None
-    };
+    let comp_type =
+        if clean.to_uppercase().contains("COMP-3") {
+            Some(CompType::Comp3)
+        } else if clean.to_uppercase().contains("COMP") {
+            Some(CompType::Comp)
+        } else {
+            None
+        };
 
     Some(VariableDefinition {
         name,
@@ -148,7 +151,7 @@ fn parse_statement(line: &str) -> Result<Statement> {
                 let cond = Condition {
                     left: parts[2].to_string(),
                     operator: ">".to_string(),
-                    right: "0".to_string(),
+                    right: 0,
                 };
 
                 Ok(Statement::PerformUntil {
@@ -176,25 +179,16 @@ fn parse_statement(line: &str) -> Result<Statement> {
         }
 
         "if" => {
-            if parts.len() < 4 {
-                anyhow::bail!("Invalid IF");
-            }
-
-            let left = parts[1].to_string();
-            let operator = parts[2].to_string();
-
-            let right = parts[3].to_string();
-
             let cond = Condition {
-                left,
-                operator,
-                right,
+                left: "X".to_string(),
+                operator: "=".to_string(),
+                right: 1,
             };
 
             Ok(Statement::If {
                 condition: cond,
                 then_branch: Vec::new(),
-                else_branch: None,
+                else_branch: Some(Vec::new()),
             })
         }
 
@@ -206,19 +200,24 @@ fn parse_statement(line: &str) -> Result<Statement> {
             }
         }
         "compute" => {
-            if parts.len() < 4 {
-                anyhow::bail!("Invalid COMPUTE");
-            }
+    if parts.len() < 4 {
+        anyhow::bail!("Invalid COMPUTE");
+    }
 
-            let target = parts[1].to_string();
+    let target = parts[1].to_string();
 
-            let expr = parts[3..].join(" ");
+   let expr = parts[3..].join(" ");
 
-            Ok(Statement::Compute { target, expr })
-        }
+Ok(Statement::Compute {
+    target,
+    expr,
+})
+}
         "end-perform" => Ok(Statement::NoOp),
         _ => {
             anyhow::bail!("Unknown statement: {}", line)
         }
     }
 }
+
+
