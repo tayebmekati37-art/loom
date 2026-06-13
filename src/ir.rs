@@ -148,7 +148,7 @@ pub enum Literal {
 pub struct Condition {
     pub left: String,
     pub operator: String,
-    pub right: i64,
+    pub right: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

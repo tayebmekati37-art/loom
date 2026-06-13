@@ -148,7 +148,7 @@ fn parse_statement(line: &str) -> Result<Statement> {
                 let cond = Condition {
                     left: parts[2].to_string(),
                     operator: ">".to_string(),
-                    right: 0,
+                    right: "0".to_string(),
                 };
 
                 Ok(Statement::PerformUntil {
@@ -183,7 +183,7 @@ fn parse_statement(line: &str) -> Result<Statement> {
             let left = parts[1].to_string();
             let operator = parts[2].to_string();
 
-            let right = parts[3].parse::<i64>().unwrap_or(0);
+            let right = parts[3].to_string();
 
             let cond = Condition {
                 left,

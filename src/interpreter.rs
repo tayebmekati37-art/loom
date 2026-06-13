@@ -190,12 +190,13 @@ impl Interpreter {
 
     fn evaluate_condition(&self, cond: &crate::ir::Condition) -> bool {
         let left_val = *self.vars.get(&cond.left).unwrap_or(&0);
+        let right_val = cond.right.parse::<i64>().unwrap_or(0);
 
-        match cond.operator.as_str() {
-            ">" => left_val > cond.right,
-            "<" => left_val < cond.right,
-            "=" => left_val == cond.right,
-            _ => false,
-        }
+      match cond.operator.as_str() {
+      ">" => left_val > right_val,
+      "<" => left_val < right_val,
+      "=" => left_val == right_val,
+      _ => false,
+      } 
     }
 }
