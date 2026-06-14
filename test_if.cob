@@ -1,9 +1,3 @@
-IDENTIFICATION DIVISION.
-PROCEDURE DIVISION.
-    MOVE 5 TO X
-    IF X > 10 THEN
-        MOVE 1 TO Y
-    ELSE
-        MOVE 0 TO Y
-    END-IF
-    DISPLAY Y.
+       IF AGE > 18
+           DISPLAY "ADULT"
+       END-IF
