@@ -1,3 +1,3 @@
-       IF AGE > 18
-           DISPLAY "ADULT"
-       END-IF
+IF AGE > 18
+DISPLAY "ADULT"
+END-IF

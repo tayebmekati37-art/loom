@@ -5,18 +5,24 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
     let mut statements = Vec::new();
     let mut variables: Vec<crate::ir::VariableDefinition> = Vec::new();
 
-    for raw_line in input.lines() {
+    let lines: Vec<&str> = input.lines().collect();
+let mut i = 0;
+
+while i < lines.len() {
+    let raw_line = lines[i];
         let line = raw_line.replace('\u{feff}', "").trim().to_string();
 
         let line = line.as_str();
         // Skip empty lines
         if line.is_empty() {
-            continue;
+            i += 1;
+         continue;
         }
 
         // Skip comments
         if line.starts_with('*') {
-            continue;
+            i += 1;
+           continue;
         }
 
         // Normalize for matching
@@ -34,15 +40,63 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
             || upper.starts_with("AUTHOR")
             || upper.starts_with("DATE-WRITTEN")
         {
-            continue;
+            i += 1;
+         continue;
         }
 
         if parse_variable_definition(line).is_some() {
-            continue;
+            i += 1;
+          continue;
         }
-        let stmt = parse_statement(line)?;
-        statements.push(stmt);
+        if upper.starts_with("IF ") {
+
+    let mut body = Vec::new();
+
+    i += 1;
+
+    while i < lines.len() {
+
+        let body_line = lines[i].trim();
+
+        if body_line.eq_ignore_ascii_case("END-IF")
+            || body_line.eq_ignore_ascii_case("END-IF.")
+        {
+            break;
+        }
+
+        let stmt = parse_statement(body_line)?;
+        body.push(stmt);
+
+        i += 1;
     }
+
+    let if_stmt = parse_statement(line)?;
+
+    match if_stmt {
+        Statement::If {
+            condition,
+            else_branch,
+            ..
+        } => {
+            statements.push(
+                Statement::If {
+                    condition,
+                    then_branch: body,
+                    else_branch,
+                }
+            );
+        }
+        _ => statements.push(if_stmt),
+    }
+
+} else {
+
+    let stmt = parse_statement(line)?;
+    statements.push(stmt);
+
+}
+i += 1;
+}
 
     Ok(statements)
 }
@@ -146,9 +200,9 @@ fn parse_statement(line: &str) -> Result<Statement> {
         "perform" => {
             if parts.len() >= 3 && parts[1].eq_ignore_ascii_case("until") {
                 let cond = Condition {
-                    left: parts[2].to_string(),
-                    operator: ">".to_string(),
-                    right: "0".to_string(),
+                 left: parts[2].to_string(),
+                operator: ">".to_string(),
+                right: "0".to_string(),
                 };
 
                 Ok(Statement::PerformUntil {
