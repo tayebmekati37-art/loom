@@ -211,7 +211,8 @@ fn parse_statement(line: &str) -> Result<Statement> {
                 })
             } else if parts.len() >= 2 {
                 Ok(Statement::Perform {
-                    name: parts[1].to_string(),
+                  name: Some(parts[1].to_string()),
+                  body: Vec::new(),
                 })
             } else {
                 anyhow::bail!("Invalid PERFORM");
