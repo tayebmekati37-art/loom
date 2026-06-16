@@ -139,12 +139,16 @@ impl Interpreter {
                 }
             }
 
-            crate::ir::Statement::Perform { name } => {
-                if let Some(func) = self.functions.get(name) {
-                    let body = func.body.clone();
-                    self.execute_block(&body);
-                }
-            }
+            crate::ir::Statement::Perform { name, body } => {
+    if !body.is_empty() {
+        self.execute_block(body);
+    } else if let Some(name) = name {
+        if let Some(func) = self.functions.get(name) {
+            let body = func.body.clone();
+            self.execute_block(&body);
+        }
+    }
+}
 
             crate::ir::Statement::While { condition, body } => {
                 while self.evaluate_condition(condition) {
@@ -200,3 +204,4 @@ impl Interpreter {
       } 
     }
 }
+

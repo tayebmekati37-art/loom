@@ -17,7 +17,8 @@ pub enum Statement {
         else_branch: Option<Vec<Statement>>,
     },
     Perform {
-        name: String,
+    name: Option<String>,
+    body: Vec<Statement>,
     },
     While {
         condition: Condition,
