@@ -100,6 +100,129 @@ i += 1;
 
     Ok(statements)
 }
+
+fn parse_block(
+lines: &Vec<&str>,
+i: &mut usize,
+terminators: &[&str],
+) -> Result<Vec<Statement>> {
+
+
+let mut statements = Vec::new();
+
+while *i < lines.len() {
+
+    let raw = lines[*i];
+    let line = raw.trim();
+
+    if line.is_empty() {
+        *i += 1;
+        continue;
+    }
+
+    let upper = line.to_uppercase();
+
+    if terminators.iter().any(|t| upper == *t) {
+        break;
+    }
+
+    // =========================
+    // IF BLOCK
+    // =========================
+
+    if upper.starts_with("IF ") {
+
+        let parts: Vec<&str> = line.split_whitespace().collect();
+
+        if parts.len() < 4 {
+            anyhow::bail!("Invalid IF");
+        }
+
+        let condition = Condition {
+            left: parts[1].to_string(),
+            operator: parts[2].to_string(),
+            right: parts[3].to_string(),
+        };
+
+        *i += 1;
+
+        let then_branch =
+            parse_block(lines, i, &["ELSE", "END-IF"])?;
+
+        let mut else_branch = None;
+
+        if *i < lines.len()
+            && lines[*i].trim().eq_ignore_ascii_case("ELSE")
+        {
+            *i += 1;
+
+            else_branch =
+                Some(parse_block(lines, i, &["END-IF"])?);
+        }
+
+        if *i < lines.len()
+            && lines[*i].trim().eq_ignore_ascii_case("END-IF")
+        {
+            *i += 1;
+        }
+
+        statements.push(Statement::If {
+            condition,
+            then_branch,
+            else_branch,
+        });
+
+        continue;
+    }
+
+    // =========================
+    // PERFORM BLOCK
+    // =========================
+
+    if upper.starts_with("PERFORM UNTIL ") {
+
+        let parts: Vec<&str> = line.split_whitespace().collect();
+
+        let condition = Condition {
+            left: parts[2].to_string(),
+            operator: ">".to_string(),
+            right: "0".to_string(),
+        };
+
+        *i += 1;
+
+        let body =
+            parse_block(lines, i, &["END-PERFORM"])?;
+
+        if *i < lines.len()
+            && lines[*i].trim().eq_ignore_ascii_case("END-PERFORM")
+        {
+            *i += 1;
+        }
+
+        statements.push(Statement::PerformUntil {
+            condition,
+            body,
+        });
+
+        continue;
+    }
+
+    // =========================
+    // NORMAL STATEMENT
+    // =========================
+
+    let stmt = parse_statement(line)?;
+    statements.push(stmt);
+
+    *i += 1;
+}
+
+Ok(statements)
+
+
+}
+
 fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
     let clean = line.replace(".", "");
     let parts: Vec<&str> = clean.split_whitespace().collect();
@@ -277,5 +400,9 @@ fn parse_statement(line: &str) -> Result<Statement> {
         }
     }
 }
+
+
+
+
 
 
