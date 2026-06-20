@@ -17,8 +17,8 @@ pub enum Statement {
         else_branch: Option<Vec<Statement>>,
     },
     Perform {
-    name: Option<String>,
-    body: Vec<Statement>,
+        name: Option<String>,
+        body: Vec<Statement>,
     },
     While {
         condition: Condition,
@@ -232,8 +232,15 @@ pub struct VariableDefinition {
     pub comp_type: Option<CompType>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Paragraph {
+    pub name: String,
+    pub statements: Vec<Statement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Program {
     pub variables: Vec<VariableDefinition>,
+    pub paragraphs: Vec<Paragraph>,
     pub statements: Vec<Statement>,
 }

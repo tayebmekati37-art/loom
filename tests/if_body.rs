@@ -1,5 +1,5 @@
-use loom::parser_cobol::parse_program;
 use loom::ir::Statement;
+use loom::parser_cobol::parse_program;
 
 #[test]
 fn parses_if_body() {

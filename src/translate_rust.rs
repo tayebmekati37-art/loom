@@ -55,14 +55,14 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
             writeln!(out, "{}}}", indent).unwrap();
         }
         Statement::Perform { name, body } => {
-    if !body.is_empty() {
-        for stmt in body {
-            translate_statement(stmt, out, indent);
+            if !body.is_empty() {
+                for stmt in body {
+                    translate_statement(stmt, out, indent);
+                }
+            } else if let Some(name) = name {
+                writeln!(out, "{}{}();", indent, name).unwrap();
+            }
         }
-    } else if let Some(name) = name {
-        writeln!(out, "{}{}();", indent, name).unwrap();
-    }
-}
         Statement::While { condition, body } => {
             let cond_str = format!(
                 "{} {} {}",
@@ -258,4 +258,3 @@ fn translate_statement(stmt: &Statement, out: &mut String, indent: &str) {
         }
     }
 }
-
