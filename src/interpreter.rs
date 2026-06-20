@@ -74,13 +74,21 @@ fn parse_output(s: &str) -> anyhow::Result<HashMap<String, i64>> {
 pub struct Interpreter {
     vars: HashMap<String, i64>,
     functions: HashMap<String, Function>,
+    paragraphs: HashMap<String, Vec<crate::ir::Statement>>,
 }
 
 impl Interpreter {
+    pub fn load_program(&mut self, program: &crate::ir::Program) {
+        for para in &program.paragraphs {
+            self.paragraphs.insert(para.name.clone(), para.statements.clone());
+        }
+    }
+
     pub fn new() -> Self {
         Self {
             vars: HashMap::new(),
             functions: HashMap::new(),
+            paragraphs: HashMap::new(),
         }
     }
 
@@ -140,15 +148,15 @@ impl Interpreter {
             }
 
             crate::ir::Statement::Perform { name, body } => {
-    if !body.is_empty() {
-        self.execute_block(body);
-    } else if let Some(name) = name {
-        if let Some(func) = self.functions.get(name) {
-            let body = func.body.clone();
-            self.execute_block(&body);
-        }
-    }
-}
+                if !body.is_empty() {
+                    self.execute_block(body);
+                } else if let Some(name) = name {
+                    if let Some(func) = self.functions.get(name) {
+                        let body = func.body.clone();
+                        self.execute_block(&body);
+                    }
+                }
+            }
 
             crate::ir::Statement::While { condition, body } => {
                 while self.evaluate_condition(condition) {
@@ -196,12 +204,12 @@ impl Interpreter {
         let left_val = *self.vars.get(&cond.left).unwrap_or(&0);
         let right_val = cond.right.parse::<i64>().unwrap_or(0);
 
-      match cond.operator.as_str() {
-      ">" => left_val > right_val,
-      "<" => left_val < right_val,
-      "=" => left_val == right_val,
-      _ => false,
-      } 
+        match cond.operator.as_str() {
+            ">" => left_val > right_val,
+            "<" => left_val < right_val,
+            "=" => left_val == right_val,
+            _ => false,
+        }
     }
 }
 
