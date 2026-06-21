@@ -6,23 +6,23 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
     let mut variables: Vec<crate::ir::VariableDefinition> = Vec::new();
 
     let lines: Vec<&str> = input.lines().collect();
-let mut i = 0;
+    let mut i = 0;
 
-while i < lines.len() {
-    let raw_line = lines[i];
+    while i < lines.len() {
+        let raw_line = lines[i];
         let line = raw_line.replace('\u{feff}', "").trim().to_string();
 
         let line = line.as_str();
         // Skip empty lines
         if line.is_empty() {
             i += 1;
-         continue;
+            continue;
         }
 
         // Skip comments
         if line.starts_with('*') {
             i += 1;
-           continue;
+            continue;
         }
 
         // Normalize for matching
@@ -41,65 +41,158 @@ while i < lines.len() {
             || upper.starts_with("DATE-WRITTEN")
         {
             i += 1;
-         continue;
+            continue;
         }
 
         if parse_variable_definition(line).is_some() {
             i += 1;
-          continue;
+            continue;
         }
         if upper.starts_with("IF ") {
+            let mut body = Vec::new();
 
-    let mut body = Vec::new();
+            i += 1;
 
-    i += 1;
+            while i < lines.len() {
+                let body_line = lines[i].trim();
 
-    while i < lines.len() {
+                if body_line.eq_ignore_ascii_case("END-IF")
+                    || body_line.eq_ignore_ascii_case("END-IF.")
+                {
+                    break;
+                }
 
-        let body_line = lines[i].trim();
+                let stmt = parse_statement(body_line)?;
+                body.push(stmt);
 
-        if body_line.eq_ignore_ascii_case("END-IF")
-            || body_line.eq_ignore_ascii_case("END-IF.")
-        {
-            break;
+                i += 1;
+            }
+
+            let if_stmt = parse_statement(line)?;
+
+            match if_stmt {
+                Statement::If {
+                    condition,
+                    else_branch,
+                    ..
+                } => {
+                    statements.push(Statement::If {
+                        condition,
+                        then_branch: body,
+                        else_branch,
+                    });
+                }
+                _ => statements.push(if_stmt),
+            }
+        } else {
+            let stmt = parse_statement(line)?;
+            statements.push(stmt);
         }
-
-        let stmt = parse_statement(body_line)?;
-        body.push(stmt);
-
         i += 1;
     }
 
-    let if_stmt = parse_statement(line)?;
+    Ok(statements)
+}
 
-    match if_stmt {
-        Statement::If {
-            condition,
-            else_branch,
-            ..
-        } => {
-            statements.push(
-                Statement::If {
-                    condition,
-                    then_branch: body,
-                    else_branch,
-                }
-            );
+fn parse_block(lines: &Vec<&str>, i: &mut usize, terminators: &[&str]) -> Result<Vec<Statement>> {
+    let mut statements = Vec::new();
+
+    while *i < lines.len() {
+        let raw = lines[*i];
+        let line = raw.trim();
+
+        if line.is_empty() {
+            *i += 1;
+            continue;
         }
-        _ => statements.push(if_stmt),
+
+        let upper = line.to_uppercase();
+
+        if terminators.iter().any(|t| upper == *t) {
+            break;
+        }
+
+        // =========================
+        // IF BLOCK
+        // =========================
+
+        if upper.starts_with("IF ") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+
+            if parts.len() < 4 {
+                anyhow::bail!("Invalid IF");
+            }
+
+            let condition = Condition {
+                left: parts[1].to_string(),
+                operator: parts[2].to_string(),
+                right: parts[3].to_string(),
+            };
+
+            *i += 1;
+
+            let then_branch = parse_block(lines, i, &["ELSE", "END-IF"])?;
+
+            let mut else_branch = None;
+
+            if *i < lines.len() && lines[*i].trim().eq_ignore_ascii_case("ELSE") {
+                *i += 1;
+
+                else_branch = Some(parse_block(lines, i, &["END-IF"])?);
+            }
+
+            if *i < lines.len() && lines[*i].trim().eq_ignore_ascii_case("END-IF") {
+                *i += 1;
+            }
+
+            statements.push(Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            });
+
+            continue;
+        }
+
+        // =========================
+        // PERFORM BLOCK
+        // =========================
+
+        if upper.starts_with("PERFORM UNTIL ") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+
+            let condition = Condition {
+                left: parts[2].to_string(),
+                operator: ">".to_string(),
+                right: "0".to_string(),
+            };
+
+            *i += 1;
+
+            let body = parse_block(lines, i, &["END-PERFORM"])?;
+
+            if *i < lines.len() && lines[*i].trim().eq_ignore_ascii_case("END-PERFORM") {
+                *i += 1;
+            }
+
+            statements.push(Statement::PerformUntil { condition, body });
+
+            continue;
+        }
+
+        // =========================
+        // NORMAL STATEMENT
+        // =========================
+
+        let stmt = parse_statement(line)?;
+        statements.push(stmt);
+
+        *i += 1;
     }
-
-} else {
-
-    let stmt = parse_statement(line)?;
-    statements.push(stmt);
-
-}
-i += 1;
-}
 
     Ok(statements)
 }
+
 fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
     let clean = line.replace(".", "");
     let parts: Vec<&str> = clean.split_whitespace().collect();
@@ -200,9 +293,9 @@ fn parse_statement(line: &str) -> Result<Statement> {
         "perform" => {
             if parts.len() >= 3 && parts[1].eq_ignore_ascii_case("until") {
                 let cond = Condition {
-                 left: parts[2].to_string(),
-                operator: ">".to_string(),
-                right: "0".to_string(),
+                    left: parts[2].to_string(),
+                    operator: ">".to_string(),
+                    right: "0".to_string(),
                 };
 
                 Ok(Statement::PerformUntil {
@@ -211,8 +304,8 @@ fn parse_statement(line: &str) -> Result<Statement> {
                 })
             } else if parts.len() >= 2 {
                 Ok(Statement::Perform {
-                  name: Some(parts[1].to_string()),
-                  body: Vec::new(),
+                    name: Some(parts[1].to_string()),
+                    body: Vec::new(),
                 })
             } else {
                 anyhow::bail!("Invalid PERFORM");
@@ -277,5 +370,3 @@ fn parse_statement(line: &str) -> Result<Statement> {
         }
     }
 }
-
-
