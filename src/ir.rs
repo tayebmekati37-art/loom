@@ -1,3 +1,15 @@
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Expression {
+    Literal(Literal),
+    Variable(String),
+
+    Binary {
+        left: Box<Expression>,
+        operator: String,
+        right: Box<Expression>,
+    },
+}
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -204,16 +216,7 @@ pub enum PicCategory {
     AlphaNumeric,
     Decimal,
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Expression {
-    Literal(i64),
-    Variable(String),
-    Binary {
-        left: String,
-        op: String,
-        right: String,
-    },
-}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum UsageClause {
@@ -244,3 +247,4 @@ pub struct Program {
     pub paragraphs: Vec<Paragraph>,
     pub statements: Vec<Statement>,
 }
+

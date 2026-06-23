@@ -78,6 +78,40 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
+
+    fn evaluate_expression(&self, expr: &crate::ir::Expression) -> i64 {
+        match expr {
+            crate::ir::Expression::Literal(v) => {
+                match v {
+                    crate::ir::Literal::Int(i) => *i,
+                    _ => 0,
+                }
+            },
+
+            crate::ir::Expression::Variable(name) => {
+                *self.vars.get(name).unwrap_or(&0)
+            }
+
+            crate::ir::Expression::Binary { left, operator, right } => {
+                let l = self.evaluate_expression(left);
+                let r = self.evaluate_expression(right);
+
+                match operator.as_str() {
+                    "+" => l + r,
+                    "-" => l - r,
+                    "*" => l * r,
+                    "/" => {
+                        if r == 0 {
+                            0
+                        } else {
+                            l / r
+                        }
+                    }
+                    _ => 0,
+                }
+            }
+        }
+    }
     pub fn load_program(&mut self, program: &crate::ir::Program) {
         for para in &program.paragraphs {
             self.paragraphs.insert(para.name.clone(), para.statements.clone());
@@ -175,7 +209,11 @@ impl Interpreter {
             crate::ir::Statement::Redefines { .. } => {}
             crate::ir::Statement::Occurs { .. } => {}
             crate::ir::Statement::ConditionName { .. } => {}
-            crate::ir::Statement::Compute { .. } => {}
+            
+            crate::ir::Statement::Compute { target, expr } => {
+                let value = expr.parse::<i64>().unwrap_or(0);
+                self.vars.insert(target.clone(), value);
+            }
             crate::ir::Statement::OpenFile { .. } => {}
             crate::ir::Statement::ReadFile { .. } => {}
             crate::ir::Statement::WriteFile { .. } => {}
@@ -212,5 +250,8 @@ impl Interpreter {
         }
     }
 }
+
+
+
 
 
