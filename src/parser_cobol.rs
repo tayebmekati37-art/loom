@@ -372,3 +372,30 @@ fn parse_statement(line: &str) -> Result<Statement> {
 }
 
 
+
+
+fn parse_expression(expr: &str) -> crate::ir::Expression {
+    let expr = expr.trim();
+
+    if let Ok(v) = expr.parse::<i64>() {
+        return crate::ir::Expression::Literal(
+            crate::ir::Literal::Int(v)
+        );
+    }
+
+    for op in ["+", "-", "*", "/"] {
+        if let Some(idx) = expr.find(op) {
+            let left = expr[..idx].trim();
+            let right = expr[idx + 1..].trim();
+
+            return crate::ir::Expression::Binary {
+                left: Box::new(parse_expression(left)),
+                operator: op.to_string(),
+                right: Box::new(parse_expression(right)),
+            };
+        }
+    }
+
+    crate::ir::Expression::Variable(expr.to_string())
+}
+
