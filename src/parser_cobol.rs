@@ -123,11 +123,7 @@ fn parse_block(lines: &Vec<&str>, i: &mut usize, terminators: &[&str]) -> Result
                 anyhow::bail!("Invalid IF");
             }
 
-            let condition = Condition {
-                left: parts[1].to_string(),
-                operator: parts[2].to_string(),
-                right: parts[3].to_string(),
-            };
+            let condition = parse_condition_expression(&line[2..]);
 
             *i += 1;
 
@@ -455,5 +451,40 @@ fn parse_primary(expr: &str) -> crate::ir::Expression {
     }
 
     crate::ir::Expression::Variable(expr.to_string())
+}
+
+
+
+fn parse_condition_expression(cond: &str) -> crate::ir::Condition {
+
+    let operators = vec![
+        ">=",
+        "<=",
+        "!=",
+        "=",
+        ">",
+        "<"
+    ];
+
+    for op in operators {
+
+        if let Some(idx) = cond.find(op) {
+
+            let left = cond[..idx].trim();
+            let right = cond[idx + op.len()..].trim();
+
+            return crate::ir::Condition {
+                left: left.to_string(),
+                operator: op.to_string(),
+                right: right.to_string(),
+            };
+        }
+    }
+
+    crate::ir::Condition {
+        left: cond.trim().to_string(),
+        operator: "=".to_string(),
+        right: "TRUE".to_string(),
+    }
 }
 

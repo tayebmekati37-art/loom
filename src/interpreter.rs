@@ -79,6 +79,18 @@ pub struct Interpreter {
 
 impl Interpreter {
 
+fn eval_condition_value(&self, value: &str) -> i64 {
+
+    let value = value.trim();
+
+    if let Ok(v) = value.parse::<i64>() {
+        return v;
+    }
+
+    *self.vars.get(value).unwrap_or(&0)
+}
+
+
     fn evaluate_expression(&self, expr: &crate::ir::Expression) -> i64 {
         match expr {
             crate::ir::Expression::Literal(v) => {
@@ -250,6 +262,7 @@ impl Interpreter {
         }
     }
 }
+
 
 
 
