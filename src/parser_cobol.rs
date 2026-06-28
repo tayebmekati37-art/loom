@@ -235,6 +235,54 @@ fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
     })
 }
 fn parse_statement(line: &str) -> Result<Statement> {
+
+        if line.starts_with("PERFORM VARYING") {
+
+            let text = line.replace("PERFORM VARYING", "").trim().to_string();
+
+            let parts: Vec<&str> = text.split("UNTIL").collect();
+
+            let left = parts[0].trim();
+            let until_text = parts[1].trim();
+
+            let left_parts: Vec<&str> = left.split_whitespace().collect();
+
+            let variable = left_parts[0].to_string();
+
+            let from_value = left_parts[2].parse::<i64>().unwrap_or(0);
+
+            let by_value = left_parts[4].parse::<i64>().unwrap_or(1);
+
+            *i += 1;
+
+            let mut body = Vec::new();
+
+            while *i < lines.len() {
+
+                let inner = lines[*i].trim();
+
+                if inner == "END-PERFORM" {
+                    break;
+                }
+
+                body.push(parse_statement(inner)?);
+
+                *i += 1;
+            }
+
+            return Ok(Statement::PerformVarying {
+                variable,
+                from: crate::ir::Expression::Literal(
+                    crate::ir::Literal::Int(from_value)
+                ),
+                by: crate::ir::Expression::Literal(
+                    crate::ir::Literal::Int(by_value)
+                ),
+                until: parse_condition_expression(until_text),
+                body,
+            });
+        }
+
     let upper = line.trim().to_uppercase();
 
     if upper.starts_with("END-") {
@@ -487,4 +535,5 @@ fn parse_condition_expression(cond: &str) -> crate::ir::Condition {
         right: "TRUE".to_string(),
     }
 }
+
 
