@@ -114,6 +114,14 @@ pub enum Statement {
         body: Vec<Statement>,
     },
 
+    PerformVarying {
+        variable: String,
+        from: Expression,
+        by: Expression,
+        until: Condition,
+        body: Vec<Statement>,
+    },
+
     Call {
         program: String,
         using_args: Vec<String>,
@@ -247,4 +255,5 @@ pub struct Program {
     pub paragraphs: Vec<Paragraph>,
     pub statements: Vec<Statement>,
 }
+
 
