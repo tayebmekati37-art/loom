@@ -191,15 +191,7 @@ impl Interpreter {
                 }
             }
 
-            crate::ir::Statement::While {
-                condition,
-                body,
-            } => {
-
-                while self.evaluate_condition(condition) {
-                    self.execute_block(body);
-                }
-            }
+            
 
             crate::ir::Statement::PerformVarying {
                 variable,
@@ -265,16 +257,19 @@ impl Interpreter {
                 }
             }
 
-            crate::ir::Statement::Compute {
-                target,
-                expr,
-            } => {
+            
+crate::ir::Statement::Compute {
+    target,
+    expr,
+} => {
 
-                let value =
-                    expr.parse::<i64>().unwrap_or(0);
+    let value =
+        self.evaluate_expression(expr);
 
-                self.vars.insert(target.clone(), value);
-            }
+    self.vars.insert(target.clone(), value);
+}
+
+
 
             crate::ir::Statement::Call {
                 program,
@@ -301,6 +296,15 @@ impl Interpreter {
             crate::ir::Statement::Continue => {}
             crate::ir::Statement::Exit => {}
             crate::ir::Statement::Inspect { .. } => {}
+            crate::ir::Statement::PerformUntil {
+    condition,
+    body,
+} => {
+
+    while !self.evaluate_condition(condition) {
+        self.execute_block(body);
+    }
+}
         }
     }
 
