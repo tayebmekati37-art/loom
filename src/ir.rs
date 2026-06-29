@@ -1,3 +1,6 @@
+
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Expression {
     Literal(Literal),
@@ -10,103 +13,58 @@ pub enum Expression {
     },
 }
 
-use serde::{Deserialize, Serialize};
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Condition {
+    pub left: String,
+    pub operator: String,
+    pub right: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Literal {
+    Int(i64),
+    String(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Source {
+    Literal(i64),
+    LiteralString(String),
+    Variable(String),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
     NoOp,
-    Add {
-        target: String,
-        value: i64,
+
+    Display {
+        value: Literal,
     },
+
     Move {
         source: Source,
         target: String,
     },
+
+    Add {
+        value: i64,
+        target: String,
+    },
+
+    Compute {
+        target: String,
+        expr: Expression,
+    },
+
     If {
         condition: Condition,
         then_branch: Vec<Statement>,
         else_branch: Option<Vec<Statement>>,
     },
+
     Perform {
         name: Option<String>,
         body: Vec<Statement>,
-    },
-    While {
-        condition: Condition,
-        body: Vec<Statement>,
-    },
-    Display {
-        value: Literal,
-    },
-    Evaluate {
-        subject: String,
-        also_subject: Option<String>,
-        when_clauses: Vec<WhenClause>,
-    },
-    String {
-        sources: Vec<StringSource>,
-        into: String,
-        pointer: Option<String>,
-    },
-    Unstring {
-        source: String,
-        delimited_by: Option<LiteralOrVariable>,
-        into: Vec<String>,
-        pointer: Option<String>,
-    },
-    Redefines {
-        name: String,
-        redefines: String,
-    },
-    Occurs {
-        name: String,
-        count: i64,
-    },
-    ConditionName {
-        name: String,
-        value: Literal,
-    },
-    Compute {
-        target: String,
-        expr: String,
-    },
-    OpenFile {
-        mode: FileMode,
-        name: String,
-    },
-    ReadFile {
-        file: String,
-        into: Option<String>,
-    },
-    WriteFile {
-        file: String,
-        from: Option<String>,
-    },
-    CloseFile {
-        name: String,
-    },
-    ArrayGet {
-        name: String,
-        index: i64,
-        target: String,
-    },
-    ArraySet {
-        name: String,
-        index: i64,
-        value: Source,
-    },
-    // New features
-    Accept {
-        target: String,
-    },
-    StopRun,
-    Continue,
-    Exit,
-    Inspect {
-        source: String,
-        target: String,
-        pattern: String,
     },
 
     PerformUntil {
@@ -126,50 +84,74 @@ pub enum Statement {
         program: String,
         using_args: Vec<String>,
     },
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WhenClause {
-    pub condition: WhenCondition,
-    pub body: Vec<Statement>,
-}
+    StopRun,
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum WhenCondition {
-    Literal(Literal),
-    Variable(String),
-}
+    Continue,
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StringSource {
-    pub source: LiteralOrVariable,
-    pub delimited_by: Option<LiteralOrVariable>,
-}
+    Exit,
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum LiteralOrVariable {
-    Literal(Literal),
-    Variable(String),
-}
+    OpenFile {
+        name: String,
+        mode: FileMode,
+    },
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Source {
-    Literal(i64),
-    LiteralString(String),
-    Variable(String),
-}
+    ReadFile {
+        name: String,
+    },
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Literal {
-    Int(i64),
-    String(String),
-}
+    WriteFile {
+        name: String,
+    },
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Condition {
-    pub left: String,
-    pub operator: String,
-    pub right: String,
+    CloseFile {
+        name: String,
+    },
+
+    ArrayGet {
+        array: String,
+        index: usize,
+        target: String,
+    },
+
+    ArraySet {
+        array: String,
+        index: usize,
+        value: String,
+    },
+
+    Accept {
+        variable: String,
+    },
+
+    Evaluate {
+        value: String,
+    },
+
+    String {
+        value: String,
+    },
+
+    Unstring {
+        value: String,
+    },
+
+    Redefines {
+        name: String,
+    },
+
+    Occurs {
+        name: String,
+        times: usize,
+    },
+
+    ConditionName {
+        name: String,
+    },
+
+    Inspect {
+        value: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,7 +207,6 @@ pub enum PicCategory {
     Decimal,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum UsageClause {
     Display,
@@ -233,6 +214,7 @@ pub enum UsageClause {
     Comp3,
     Binary,
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariableDefinition {
     pub name: String,
@@ -255,5 +237,4 @@ pub struct Program {
     pub paragraphs: Vec<Paragraph>,
     pub statements: Vec<Statement>,
 }
-
 

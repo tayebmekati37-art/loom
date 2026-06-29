@@ -114,7 +114,7 @@ fn main() -> anyhow::Result<()> {
                 "javascript" => println!("{}", translate_javascript::translate(&func)),
                 "csharp" => println!("{}", translate_csharp::translate(&func)),
                 "go" => println!("{}", translate_go::translate(&func)),
-                "rust" => println!("{}", translate_rust::translate(&func)),
+                "rust" => println!("{}", translate_rust::translate_function(&func)),
                 "typescript" => println!("{}", translate_typescript::translate(&func)),
                 "kotlin" => println!("{}", translate_kotlin::translate(&func)),
                 "swift" => println!("{}", translate_swift::translate(&func)),
@@ -317,9 +317,13 @@ fn generate_test_cases(func: &ir::Function) -> anyhow::Result<Vec<HashMap<String
     Ok(tests)
 }
 
-fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSet<String>) {
+fn collect_variables(
+    stmts: &[ir::Statement],
+    set: &mut std::collections::HashSet<String>,
+) {
     for stmt in stmts {
         match stmt {
+
             ir::Statement::Add { target, .. } => {
                 set.insert(target.clone());
             }
@@ -337,6 +341,7 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
                 then_branch,
                 else_branch,
             } => {
+
                 set.insert(condition.left.clone());
 
                 collect_variables(then_branch, set);
@@ -346,75 +351,80 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
                 }
             }
 
-            ir::Statement::Perform { .. } => {}
-
-            ir::Statement::While { condition, body } => {
-                set.insert(condition.left.clone());
+            ir::Statement::Perform { body, .. } => {
                 collect_variables(body, set);
             }
 
-            ir::Statement::Display { .. } => {}
-
-            ir::Statement::Evaluate {
-                subject,
-                also_subject,
-                when_clauses,
+            ir::Statement::PerformUntil {
+                condition,
+                body,
             } => {
-                set.insert(subject.clone());
 
-                if let Some(also) = also_subject {
-                    set.insert(also.clone());
-                }
+                set.insert(condition.left.clone());
 
-                for when in when_clauses {
-                    if let ir::WhenCondition::Variable(v) = &when.condition {
-                        set.insert(v.clone());
-                    }
-
-                    collect_variables(&when.body, set);
-                }
-            }
-
-            ir::Statement::String { sources, into, .. } => {
-                set.insert(into.clone());
-
-                for src in sources {
-                    if let ir::LiteralOrVariable::Variable(v) = &src.source {
-                        set.insert(v.clone());
-                    }
-                }
-            }
-
-            ir::Statement::Unstring { source, into, .. } => {
-                set.insert(source.clone());
-
-                for var in into {
-                    set.insert(var.clone());
-                }
+                collect_variables(body, set);
             }
 
             ir::Statement::Compute { target, .. } => {
                 set.insert(target.clone());
             }
+
+            ir::Statement::Display { .. } => {}
+
+            ir::Statement::Evaluate { .. } => {}
+
+            ir::Statement::String { .. } => {}
+
+            ir::Statement::Unstring { .. } => {}
+
             ir::Statement::NoOp => {}
+
             ir::Statement::Redefines { .. } => {}
+
             ir::Statement::Occurs { .. } => {}
+
             ir::Statement::ConditionName { .. } => {}
+
             ir::Statement::OpenFile { .. } => {}
+
             ir::Statement::ReadFile { .. } => {}
+
             ir::Statement::WriteFile { .. } => {}
+
             ir::Statement::CloseFile { .. } => {}
+
             ir::Statement::ArrayGet { .. } => {}
+
             ir::Statement::ArraySet { .. } => {}
+
             ir::Statement::Accept { .. } => {}
+
             ir::Statement::StopRun => {}
+
             ir::Statement::Continue => {}
+
             ir::Statement::Exit => {}
-            ir::Statement::PerformUntil { .. } => {}
+
             ir::Statement::Call { .. } => {}
+
             ir::Statement::Inspect { .. } => {}
+            ir::Statement::PerformVarying {
+           variable,
+           from: _,
+          by: _,
+          until,
+          body,
+        } => {
+        set.insert(variable.clone());
+        set.insert(until.left.clone());
+
+          collect_variables(body, set);
+}
         }
     }
 }
+
+
+
 
 
