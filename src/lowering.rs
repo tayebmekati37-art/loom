@@ -17,8 +17,9 @@ pub fn lower_statement(
     match stmt {
 
         AstStatement::Display { value } => {
+
             Statement::Display {
-                value: Expression::Variable(value.clone()),
+                value: Literal::String(value.clone()),
             }
         }
 
@@ -27,9 +28,9 @@ pub fn lower_statement(
             target,
         } => {
 
-            Statement::Assign {
+            Statement::Move {
+                source: Source::Variable(source.clone()),
                 target: target.clone(),
-                value: Expression::Variable(source.clone()),
             }
         }
 
@@ -38,23 +39,60 @@ pub fn lower_statement(
             target,
         } => {
 
-            Statement::Assign {
+            Statement::Add {
+                value: value.parse::<i64>().unwrap_or(0),
                 target: target.clone(),
+            }
+        }
 
-                value: Expression::Binary {
-                    left: Box::new(
-                        Expression::Variable(target.clone())
-                    ),
+        AstStatement::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
 
-                    operator: "+".to_string(),
+            Statement::If {
 
-                    right: Box::new(
-                        Expression::Variable(value.clone())
-                    ),
+                condition: Condition {
+                    left: condition.left.clone(),
+                    operator: condition.operator.clone(),
+                    right: condition.right.clone(),
                 },
+
+                then_branch: then_branch
+                    .iter()
+                    .map(lower_statement)
+                    .collect(),
+
+                else_branch: else_branch.as_ref().map(|b| {
+                    b.iter()
+                        .map(lower_statement)
+                        .collect()
+                }),
+            }
+        }
+
+        AstStatement::PerformUntil {
+            condition,
+            body,
+        } => {
+
+            Statement::PerformUntil {
+
+                condition: Condition {
+                    left: condition.left.clone(),
+                    operator: condition.operator.clone(),
+                    right: condition.right.clone(),
+                },
+
+                body: body
+                    .iter()
+                    .map(lower_statement)
+                    .collect(),
             }
         }
 
         _ => Statement::NoOp,
     }
 }
+
