@@ -1,3 +1,5 @@
+mod lowering;
+mod ast;
 mod interpreter;
 mod ir;
 mod migration;
@@ -423,6 +425,8 @@ fn collect_variables(
         }
     }
 }
+
+
 
 
 
