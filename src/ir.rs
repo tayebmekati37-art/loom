@@ -35,6 +35,15 @@ pub enum Source {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
+
+    For {
+        variable: String,
+        start: Expression,
+        step: Expression,
+        until: Condition,
+        body: Vec<Statement>,
+    },
+
     NoOp,
 
     Display {
@@ -237,4 +246,5 @@ pub struct Program {
     pub paragraphs: Vec<Paragraph>,
     pub statements: Vec<Statement>,
 }
+
 

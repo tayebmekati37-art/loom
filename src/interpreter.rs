@@ -295,7 +295,66 @@ crate::ir::Statement::Compute {
             crate::ir::Statement::StopRun => {}
             crate::ir::Statement::Continue => {}
             crate::ir::Statement::Exit => {}
-            crate::ir::Statement::Inspect { .. } => {}
+            crate::ir::Statement::Inspect { .. } => {},
+
+            crate::ir::Statement::For {
+                variable,
+                start,
+                step,
+                until,
+                body,
+            } => {
+
+                let mut current =
+                    self.evaluate_expression(start);
+
+                let increment =
+                    self.evaluate_expression(step);
+
+                self.vars.insert(
+                    variable.clone(),
+                    current,
+                );
+
+                loop {
+
+                    let left =
+                        self.eval_condition_value(
+                            &until.left
+                        );
+
+                    let right =
+                        self.eval_condition_value(
+                            &until.right
+                        );
+
+                    let done = match until.operator.as_str() {
+
+                        "=" => left == right,
+                        "!=" => left != right,
+                        ">" => left > right,
+                        "<" => left < right,
+                        ">=" => left >= right,
+                        "<=" => left <= right,
+
+                        _ => false,
+                    };
+
+                    if done {
+                        break;
+                    }
+
+                    self.execute_block(body);
+
+                    current += increment;
+
+                    self.vars.insert(
+                        variable.clone(),
+                        current,
+                    );
+                }
+            }
+
             crate::ir::Statement::PerformUntil {
     condition,
     body,
@@ -329,4 +388,5 @@ crate::ir::Statement::Compute {
         }
     }
 }
+
 
