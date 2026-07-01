@@ -370,6 +370,18 @@ fn collect_variables(
             ir::Statement::Compute { target, .. } => {
                 set.insert(target.clone());
             }
+            
+            ir::Statement::For {
+                variable,
+                body,
+                ..
+            } => {
+
+                set.insert(variable.clone());
+
+                collect_variables(body, set);
+            }
+
 
             ir::Statement::Display { .. } => {}
 

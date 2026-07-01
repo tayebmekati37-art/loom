@@ -92,7 +92,42 @@ pub fn lower_statement(
             }
         }
 
+        
+        AstStatement::PerformVarying {
+            variable,
+            from,
+            by,
+            until,
+            body,
+        } => {
+
+            Statement::For {
+
+                variable: variable.clone(),
+
+                start: Expression::Variable(
+                    from.clone()
+                ),
+
+                step: Expression::Variable(
+                    by.clone()
+                ),
+
+                until: Condition {
+                    left: until.left.clone(),
+                    operator: until.operator.clone(),
+                    right: until.right.clone(),
+                },
+
+                body: body
+                    .iter()
+                    .map(lower_statement)
+                    .collect(),
+            }
+        }
+
         _ => Statement::NoOp,
     }
 }
+
 
