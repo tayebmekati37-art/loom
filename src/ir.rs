@@ -1,4 +1,11 @@
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WhenClause {
+    pub condition: String,
+    pub body: Vec<Statement>,
+}
+
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -246,5 +253,6 @@ pub struct Program {
     pub paragraphs: Vec<Paragraph>,
     pub statements: Vec<Statement>,
 }
+
 
 
