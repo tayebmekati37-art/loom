@@ -383,9 +383,17 @@ fn collect_variables(
             }
 
 
-            ir::Statement::Display { .. } => {}
+            ir::Statement::Display { .. } => {},
 
+            
+            
             ir::Statement::Evaluate { .. } => {}
+
+
+
+
+
+           
 
             ir::Statement::String { .. } => {}
 
@@ -437,6 +445,7 @@ fn collect_variables(
         }
     }
 }
+
 
 
 
