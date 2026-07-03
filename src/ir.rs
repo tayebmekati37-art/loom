@@ -140,9 +140,13 @@ pub enum Statement {
         variable: String,
     },
 
+  
     Evaluate {
-        value: String,
+    value: String,
+    when_clauses: Vec<WhenClause>,
     },
+
+
 
     String {
         value: String,
