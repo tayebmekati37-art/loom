@@ -186,6 +186,71 @@ fn parse_statement(line: &str) -> Result<Statement> {
             )
         }
 
+        
+        "string" => {
+
+            let mut intoPos = 0;
+
+            for (idx, p) in parts.iter().enumerate() {
+
+                if p.eq_ignore_ascii_case("INTO") {
+                    intoPos = idx;
+                    break;
+                }
+            }
+
+            if intoPos == 0 {
+                anyhow::bail!("Invalid STRING");
+            }
+
+            let mut sources = Vec::new();
+
+            for src in &parts[1..intoPos] {
+
+                sources.push(src.to_string());
+            }
+
+            Ok(
+                Statement::String {
+                    sources,
+                    into: parts[intoPos + 1].to_string(),
+                }
+            )
+        }
+
+        "unstring" => {
+
+            let mut intoPos = 0;
+
+            for (idx, p) in parts.iter().enumerate() {
+
+                if p.eq_ignore_ascii_case("INTO") {
+                    intoPos = idx;
+                    break;
+                }
+            }
+
+            if intoPos == 0 {
+                anyhow::bail!("Invalid UNSTRING");
+            }
+
+            let source =
+                parts[1].to_string();
+
+            let into =
+                parts[(intoPos + 1)..]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>();
+
+            Ok(
+                Statement::Unstring {
+                    source,
+                    into,
+                }
+            )
+        }
+
         "compute" => {
 
             let target = parts[1].to_string();
@@ -304,5 +369,7 @@ fn parse_condition_expression(text: &str) -> Condition {
             .to_string(),
     }
 }
+
+
 
 
