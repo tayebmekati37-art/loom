@@ -1,5 +1,11 @@
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StringOperationSource {
+    pub source: String,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WhenClause {
     pub condition: String,
     pub body: Vec<Statement>,
@@ -42,6 +48,25 @@ pub enum Source {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
+    String {
+        sources: Vec<String>,
+        into: String,
+    },
+
+    Unstring {
+        source: String,
+        into: Vec<String>,
+    },
+
+    
+
+    
+
+
+    
+
+    
+
 
     For {
         variable: String,
@@ -146,16 +171,6 @@ pub enum Statement {
     when_clauses: Vec<WhenClause>,
     },
 
-
-
-    String {
-        value: String,
-    },
-
-    Unstring {
-        value: String,
-    },
-
     Redefines {
         name: String,
     },
@@ -257,6 +272,11 @@ pub struct Program {
     pub paragraphs: Vec<Paragraph>,
     pub statements: Vec<Statement>,
 }
+
+
+
+
+
 
 
 
