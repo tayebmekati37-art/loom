@@ -123,6 +123,20 @@ impl Interpreter {
         match stmt {
 
             crate::ir::Statement::NoOp => {}
+            crate::ir::Statement::Inspect {
+                source,
+                replacing,
+                with,
+            } => {
+
+                println!(
+                    "INSPECT {} replacing {} with {}",
+                    source,
+                    replacing,
+                    with
+                );
+            }
+
 
             crate::ir::Statement::Add {
                 target,
@@ -388,5 +402,6 @@ crate::ir::Statement::Compute {
         }
     }
 }
+
 
 
