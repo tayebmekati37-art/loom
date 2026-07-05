@@ -185,7 +185,9 @@ pub enum Statement {
     },
 
     Inspect {
-        value: String,
+        source: String,
+        replacing: String,
+        with: String,
     },
 }
 
@@ -272,6 +274,7 @@ pub struct Program {
     pub paragraphs: Vec<Paragraph>,
     pub statements: Vec<Statement>,
 }
+
 
 
 
