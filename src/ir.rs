@@ -182,6 +182,7 @@ pub enum Statement {
 
     ConditionName {
         name: String,
+        value: String,
     },
 
     Inspect {
@@ -274,6 +275,7 @@ pub struct Program {
     pub paragraphs: Vec<Paragraph>,
     pub statements: Vec<Statement>,
 }
+
 
 
 
