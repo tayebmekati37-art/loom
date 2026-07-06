@@ -123,6 +123,18 @@ impl Interpreter {
         match stmt {
 
             crate::ir::Statement::NoOp => {}
+            crate::ir::Statement::ConditionName {
+                name,
+                value,
+            } => {
+
+                println!(
+                    "CONDITION-NAME {} = {}",
+                    name,
+                    value
+                );
+            }
+
             crate::ir::Statement::Inspect {
                 source,
                 replacing,
@@ -402,6 +414,7 @@ crate::ir::Statement::Compute {
         }
     }
 }
+
 
 
 
