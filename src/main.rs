@@ -1,3 +1,4 @@
+mod semantic;
 mod lowering;
 mod ast;
 mod interpreter;
@@ -445,6 +446,7 @@ fn collect_variables(
         }
     }
 }
+
 
 
 

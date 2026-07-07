@@ -2,36 +2,33 @@ use crate::ir::*;
 use anyhow::Result;
 
 pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
-
     let mut statements = Vec::new();
+    let mut variables: Vec<crate::ir::VariableDefinition> = Vec::new();
 
     let lines: Vec<&str> = input.lines().collect();
+let mut i = 0;
 
-    let mut i = 0;
-
-    while i < lines.len() {
-
-        let raw_line = lines[i];
-
-        let line = raw_line
-            .replace('\u{feff}', "")
-            .trim()
-            .to_string();
+while i < lines.len() {
+    let raw_line = lines[i];
+        let line = raw_line.replace('\u{feff}', "").trim().to_string();
 
         let line = line.as_str();
-
+        // Skip empty lines
         if line.is_empty() {
             i += 1;
-            continue;
+         continue;
         }
 
+        // Skip comments
         if line.starts_with('*') {
             i += 1;
-            continue;
+           continue;
         }
 
+        // Normalize for matching
         let upper = line.to_uppercase();
 
+        // Skip COBOL divisions / metadata
         if upper.starts_with("IDENTIFICATION DIVISION")
             || upper.starts_with("ENVIRONMENT DIVISION")
             || upper.starts_with("DATA DIVISION")
@@ -39,304 +36,288 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
             || upper.starts_with("WORKING-STORAGE SECTION")
             || upper.starts_with("FILE SECTION")
             || upper.starts_with("LINKAGE SECTION")
+            || upper.starts_with("PROGRAM-ID")
+            || upper.starts_with("AUTHOR")
+            || upper.starts_with("DATE-WRITTEN")
         {
             i += 1;
-            continue;
+         continue;
         }
 
-        if upper.starts_with("PERFORM VARYING") {
-
-            let parts: Vec<&str> = line.split_whitespace().collect();
-
-            let variable = parts[2].to_string();
-
-            let from_value =
-                parts[4].parse::<i64>().unwrap_or(0);
-
-            let by_value =
-                parts[6].parse::<i64>().unwrap_or(1);
-
-            let until_text =
-                parts[8..].join(" ");
-
-            let mut body = Vec::new();
-
+        if parse_variable_definition(line).is_some() {
             i += 1;
+          continue;
+        }
+        if upper.starts_with("IF ") {
 
-            while i < lines.len() {
+    let mut body = Vec::new();
 
-                let inner = lines[i].trim();
+    i += 1;
 
-                if inner.eq_ignore_ascii_case("END-PERFORM")
-                    || inner.eq_ignore_ascii_case("END-PERFORM.")
-                {
-                    break;
-                }
+    while i < lines.len() {
 
-                body.push(parse_statement(inner)?);
+        let body_line = lines[i].trim();
 
-                i += 1;
-            }
-
-            statements.push(
-                Statement::PerformVarying {
-                    variable,
-
-                    from: Expression::Literal(
-                        Literal::Int(from_value)
-                    ),
-
-                    by: Expression::Literal(
-                        Literal::Int(by_value)
-                    ),
-
-                    until: parse_condition_expression(&until_text),
-
-                    body,
-                }
-            );
-
-            i += 1;
-            continue;
+        if body_line.eq_ignore_ascii_case("END-IF")
+            || body_line.eq_ignore_ascii_case("END-IF.")
+        {
+            break;
         }
 
-        if upper == "PERFORM" {
-
-            let mut body = Vec::new();
-
-            i += 1;
-
-            while i < lines.len() {
-
-                let inner = lines[i].trim();
-
-                if inner.eq_ignore_ascii_case("END-PERFORM")
-                    || inner.eq_ignore_ascii_case("END-PERFORM.")
-                {
-                    break;
-                }
-
-                body.push(parse_statement(inner)?);
-
-                i += 1;
-            }
-
-            statements.push(
-                Statement::Perform {
-                    name: None,
-                    body,
-                }
-            );
-
-            i += 1;
-            continue;
-        }
-
-        statements.push(parse_statement(line)?);
+        let stmt = parse_statement(body_line)?;
+        body.push(stmt);
 
         i += 1;
     }
 
-    Ok(statements)
+    let if_stmt = parse_statement(line)?;
+
+    match if_stmt {
+        Statement::If {
+            condition,
+            else_branch,
+            ..
+        } => {
+            statements.push(
+                Statement::If {
+                    condition,
+                    then_branch: body,
+                    else_branch,
+                }
+            );
+        }
+        _ => statements.push(if_stmt),
+    }
+
+} else {
+if upper == "PERFORM" {
+    let mut body = Vec::new();
+
+    i += 1;
+
+    while i < lines.len() {
+        let inner = lines[i].trim();
+
+        if inner.eq_ignore_ascii_case("END-PERFORM") {
+            break;
+        }
+
+        body.push(parse_statement(inner)?);
+
+        i += 1;
+    }
+
+    statements.push(Statement::Perform {
+        name: None,
+        body,
+    });
+
+    i += 1;
+    continue;
+}
+    let stmt = parse_statement(line)?;
+    statements.push(stmt);
+
+}
+i += 1;
 }
 
+    Ok(statements)
+}
+fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
+    let clean = line.replace(".", "");
+    let parts: Vec<&str> = clean.split_whitespace().collect();
+
+    if parts.len() < 4 {
+        return None;
+    }
+
+    if parts[0] != "01" {
+        return None;
+    }
+
+    if !parts[2].eq_ignore_ascii_case("PIC") {
+        return None;
+    }
+
+    let name = parts[1].to_string();
+
+    let pic_text = parts[3].to_uppercase();
+
+    let pic = if pic_text.contains('V') {
+        Some(PicType::Decimal)
+    } else if pic_text.contains('9') {
+        Some(PicType::Numeric)
+    } else {
+        Some(PicType::Alpha)
+    };
+
+    let comp_type = if clean.to_uppercase().contains("COMP-3") {
+        Some(CompType::Comp3)
+    } else if clean.to_uppercase().contains("COMP") {
+        Some(CompType::Comp)
+    } else {
+        None
+    };
+
+    Some(VariableDefinition {
+        name,
+        pic,
+        occurs: None,
+        redefines: None,
+        initial_value: None,
+        comp_type,
+    })
+}
 fn parse_statement(line: &str) -> Result<Statement> {
+    let upper = line.trim().to_uppercase();
 
-    let clean = line.replace('.', "");
-
-    let parts: Vec<&str> =
-        clean.split_whitespace().collect();
-
-    if parts.is_empty() {
+    if upper.starts_with("END-") {
         return Ok(Statement::NoOp);
     }
 
-    match parts[0].to_lowercase().as_str() {
+    // Ignore PIC declarations
+    if line.to_uppercase().contains("PIC ") {
+        return Ok(Statement::NoOp);
+    }
 
+    let clean = line.replace('.', "");
+    let parts: Vec<&str> = clean.split_whitespace().collect();
+
+    if parts.is_empty() {
+        anyhow::bail!("Empty statement");
+    }
+
+    match parts[0].to_lowercase().as_str() {
         "display" => {
-            Ok(
-                Statement::Display {
-                    value: Literal::String(
-                        parts[1..].join(" ")
-                    ),
-                }
-            )
+            if parts.len() < 2 {
+                anyhow::bail!("Invalid DISPLAY");
+            }
+
+            Ok(Statement::Display {
+                value: Literal::String(parts[1..].join(" ")),
+            })
         }
 
         "move" => {
-            Ok(
-                Statement::Move {
-                    source: Source::Variable(
-                        parts[1].to_string()
-                    ),
-                    target: parts[3].to_string(),
-                }
-            )
+            if parts.len() < 4 {
+                anyhow::bail!("Invalid MOVE");
+            }
+
+            Ok(Statement::Move {
+                source: Source::Variable(parts[1].to_string()),
+                target: parts[3].to_string(),
+            })
         }
 
         "add" => {
-            Ok(
-                Statement::Add {
-                    value: parts[1]
-                        .parse::<i64>()
-                        .unwrap_or(0),
-
-                    target: parts[3].to_string(),
-                }
-            )
-        }
-
-        
-        "string" => {
-
-            let mut intoPos = 0;
-
-            for (idx, p) in parts.iter().enumerate() {
-
-                if p.eq_ignore_ascii_case("INTO") {
-                    intoPos = idx;
-                    break;
-                }
+            if parts.len() < 4 {
+                anyhow::bail!("Invalid ADD");
             }
 
-            if intoPos == 0 {
-                anyhow::bail!("Invalid STRING");
-            }
-
-            let mut sources = Vec::new();
-
-            for src in &parts[1..intoPos] {
-
-                sources.push(src.to_string());
-            }
-
-            Ok(
-                Statement::String {
-                    sources,
-                    into: parts[intoPos + 1].to_string(),
-                }
-            )
-        }
-
-        "unstring" => {
-
-            let mut intoPos = 0;
-
-            for (idx, p) in parts.iter().enumerate() {
-
-                if p.eq_ignore_ascii_case("INTO") {
-                    intoPos = idx;
-                    break;
-                }
-            }
-
-            if intoPos == 0 {
-                anyhow::bail!("Invalid UNSTRING");
-            }
-
-            let source =
-                parts[1].to_string();
-
-            let into =
-                parts[(intoPos + 1)..]
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>();
-
-            Ok(
-                Statement::Unstring {
-                    source,
-                    into,
-                }
-            )
-        }
-
-        "compute" => {
-
-            let target = parts[1].to_string();
-
-            let expr =
-                parse_expression(&parts[3..]);
-
-            Ok(
-                Statement::Compute {
-                    target,
-                    expr,
-                }
-            )
-        }
-
-        "if" => {
-
-            let cond = Condition {
-                left: parts[1].to_string(),
-                operator: parts[2].to_string(),
-                right: parts[3].to_string(),
-            };
-
-            Ok(
-                Statement::If {
-                    condition: cond,
-                    then_branch: Vec::new(),
-                    else_branch: None,
-                }
-            )
-        }
-
-        "call" => {
-            Ok(
-                Statement::Call {
-                    program: parts[1]
-                        .replace('"', ""),
-                    using_args: Vec::new(),
-                }
-            )
+            Ok(Statement::Add {
+                value: parts[1].parse::<i64>().unwrap_or(0),
+                target: parts[3].to_string(),
+            })
         }
 
         "perform" => {
-            Ok(
-                Statement::Perform {
-                    name: Some(
-                        parts[1].to_string()
-                    ),
+            if parts.len() >= 3 && parts[1].eq_ignore_ascii_case("until") {
+                let cond = Condition {
+                 left: parts[2].to_string(),
+                operator: ">".to_string(),
+                right: "0".to_string(),
+                };
+
+                Ok(Statement::PerformUntil {
+                    condition: cond,
                     body: Vec::new(),
-                }
-            )
+                })
+            } else if parts.len() >= 2 {
+                Ok(Statement::Perform {
+                  name: Some(parts[1].to_string()),
+                  body: Vec::new(),
+                })
+            } else {
+                anyhow::bail!("Invalid PERFORM");
+            }
         }
 
-        "stop" => Ok(Statement::NoOp),
+        "call" => {
+            if parts.len() < 2 {
+                anyhow::bail!("Invalid CALL");
+            }
 
-        _ => Ok(Statement::NoOp),
+            Ok(Statement::Call {
+                program: parts[1].replace('"', ""),
+                using_args: Vec::new(),
+            })
+        }
+
+        "if" => {
+            if parts.len() < 4 {
+                anyhow::bail!("Invalid IF");
+            }
+
+            let left = parts[1].to_string();
+            let operator = parts[2].to_string();
+
+            let right = parts[3].to_string();
+
+            let cond = Condition {
+                left,
+                operator,
+                right,
+            };
+
+            Ok(Statement::If {
+                condition: cond,
+                then_branch: Vec::new(),
+                else_branch: None,
+            })
+        }
+
+        "stop" => {
+            if parts.len() >= 2 && parts[1].eq_ignore_ascii_case("run") {
+                Ok(Statement::NoOp)
+            } else {
+                anyhow::bail!("Invalid STOP statement");
+            }
+        }
+        "compute" => {
+            if parts.len() < 4 {
+                anyhow::bail!("Invalid COMPUTE");
+            }
+
+            let target = parts[1].to_string();
+
+           let expr = parse_expression(&parts[3..]);
+
+         Ok(Statement::Compute { target, expr })
+        }
+        "end-perform" => Ok(Statement::NoOp),
+        _ => {
+            anyhow::bail!("Unknown statement: {}", line)
+        }
     }
 }
-
 fn parse_expression(tokens: &[&str]) -> Expression {
-
     if tokens.len() == 1 {
-
         let token = tokens[0];
 
         if let Ok(num) = token.parse::<i64>() {
-            return Expression::Literal(
-                Literal::Int(num)
-            );
+            return Expression::Literal(Literal::Int(num));
         }
 
-        return Expression::Variable(
-            token.to_string()
-        );
+        return Expression::Variable(token.to_string());
     }
 
     if tokens.len() >= 3 {
+        let left = parse_expression(&tokens[0..1]);
 
-        let left =
-            parse_expression(&tokens[0..1]);
+        let operator = tokens[1].to_string();
 
-        let operator =
-            tokens[1].to_string();
-
-        let right =
-            parse_expression(&tokens[2..]);
+        let right = parse_expression(&tokens[2..]);
 
         return Expression::Binary {
             left: Box::new(left),
@@ -345,35 +326,31 @@ fn parse_expression(tokens: &[&str]) -> Expression {
         };
     }
 
-    Expression::Literal(
-        Literal::Int(0)
-    )
-}
+    Expression::Literal(Literal::Int(0))
+}fn parse_expression(tokens: &[&str]) -> Expression {
+    if tokens.len() == 1 {
+        let token = tokens[0];
 
-fn parse_condition_expression(text: &str) -> Condition {
+        if let Ok(num) = token.parse::<i64>() {
+            return Expression::Literal(Literal::Int(num));
+        }
 
-    let parts: Vec<&str> =
-        text.split_whitespace().collect();
-
-    Condition {
-        left: parts.get(0)
-            .unwrap_or(&"")
-            .to_string(),
-
-        operator: parts.get(1)
-            .unwrap_or(&"=")
-            .to_string(),
-
-        right: parts.get(2)
-            .unwrap_or(&"0")
-            .to_string(),
+        return Expression::Variable(token.to_string());
     }
+
+    if tokens.len() >= 3 {
+        let left = parse_expression(&tokens[0..1]);
+
+        let operator = tokens[1].to_string();
+
+        let right = parse_expression(&tokens[2..]);
+
+        return Expression::Binary {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        };
+    }
+
+    Expression::Literal(Literal::Int(0))
 }
-
-
-
-
-
-
-
-

@@ -137,11 +137,6 @@ fn translate_statement(
             ).unwrap();
         }
     }
-}
-pub fn translate_function(func: &crate::ir::Function) -> String {
+}pub fn translate_function(func: &crate::ir::Function) -> String {
     format!("{:#?}", func)
 }
-
-
-
-
