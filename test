@@ -1,0 +1,12 @@
+#[test]
+fn variable_definition_parses() {
+    let line =
+        "01 BALANCE PIC S9(7)V99 COMP-3.";
+
+    let var =
+        parse_variable_definition(line)
+            .unwrap();
+
+    assert_eq!(var.name, "BALANCE");
+    assert_eq!(var.pic, "S9(7)V99");
+}
