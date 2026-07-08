@@ -1,16 +1,13 @@
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StringOperationSource {
     pub source: String,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WhenClause {
     pub condition: String,
     pub body: Vec<Statement>,
 }
-
 
 use serde::{Deserialize, Serialize};
 
@@ -57,16 +54,6 @@ pub enum Statement {
         source: String,
         into: Vec<String>,
     },
-
-    
-
-    
-
-
-    
-
-    
-
 
     For {
         variable: String,
@@ -165,10 +152,9 @@ pub enum Statement {
         variable: String,
     },
 
-  
     Evaluate {
-    value: String,
-    when_clauses: Vec<WhenClause>,
+        value: String,
+        when_clauses: Vec<WhenClause>,
     },
 
     Redefines {
@@ -275,13 +261,3 @@ pub struct Program {
     pub paragraphs: Vec<Paragraph>,
     pub statements: Vec<Statement>,
 }
-
-
-
-
-
-
-
-
-
-

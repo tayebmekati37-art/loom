@@ -19,28 +19,21 @@ fn indent(level: usize) -> String {
     "    ".repeat(level)
 }
 
-fn translate_statement(
-    stmt: &Statement,
-    level: usize,
-    out: &mut String,
-) {
+fn translate_statement(stmt: &Statement, level: usize, out: &mut String) {
     let pad = indent(level);
 
     match stmt {
-
         Statement::NoOp => {}
 
-        Statement::Display { value } => {
-            match value {
-                Literal::Int(i) => {
-                    writeln!(out, "{}println!(\"{{}}\", {});", pad, i).unwrap();
-                }
-
-                Literal::String(s) => {
-                    writeln!(out, "{}println!(\"{}\");", pad, s).unwrap();
-                }
+        Statement::Display { value } => match value {
+            Literal::Int(i) => {
+                writeln!(out, "{}println!(\"{{}}\", {});", pad, i).unwrap();
             }
-        }
+
+            Literal::String(s) => {
+                writeln!(out, "{}println!(\"{}\");", pad, s).unwrap();
+            }
+        },
 
         Statement::Move { target, .. } => {
             writeln!(out, "{}// MOVE -> {}", pad, target).unwrap();
@@ -51,13 +44,7 @@ fn translate_statement(
         }
 
         Statement::Compute { target, expr } => {
-            writeln!(
-                out,
-                "{}// COMPUTE {} = {:?}",
-                pad,
-                target,
-                expr
-            ).unwrap();
+            writeln!(out, "{}// COMPUTE {} = {:?}", pad, target, expr).unwrap();
         }
 
         Statement::If {
@@ -65,15 +52,12 @@ fn translate_statement(
             then_branch,
             else_branch,
         } => {
-
             writeln!(
                 out,
                 "{}if {} {} {} {{",
-                pad,
-                condition.left,
-                condition.operator,
-                condition.right
-            ).unwrap();
+                pad, condition.left, condition.operator, condition.right
+            )
+            .unwrap();
 
             for stmt in then_branch {
                 translate_statement(stmt, level + 1, out);
@@ -82,7 +66,6 @@ fn translate_statement(
             writeln!(out, "{}}}", pad).unwrap();
 
             if let Some(else_branch) = else_branch {
-
                 writeln!(out, "{}else {{", pad).unwrap();
 
                 for stmt in else_branch {
@@ -99,19 +82,13 @@ fn translate_statement(
             }
         }
 
-        Statement::PerformUntil {
-            condition,
-            body,
-        } => {
-
+        Statement::PerformUntil { condition, body } => {
             writeln!(
                 out,
                 "{}while !({} {} {}) {{",
-                pad,
-                condition.left,
-                condition.operator,
-                condition.right
-            ).unwrap();
+                pad, condition.left, condition.operator, condition.right
+            )
+            .unwrap();
 
             for stmt in body {
                 translate_statement(stmt, level + 1, out);
@@ -121,22 +98,14 @@ fn translate_statement(
         }
 
         Statement::Call { program, .. } => {
-            writeln!(
-                out,
-                "{}// CALL {}",
-                pad,
-                program
-            ).unwrap();
+            writeln!(out, "{}// CALL {}", pad, program).unwrap();
         }
 
         _ => {
-            writeln!(
-                out,
-                "{}// Unsupported statement",
-                pad
-            ).unwrap();
+            writeln!(out, "{}// Unsupported statement", pad).unwrap();
         }
     }
-}pub fn translate_function(func: &crate::ir::Function) -> String {
+}
+pub fn translate_function(func: &crate::ir::Function) -> String {
     format!("{:#?}", func)
 }
