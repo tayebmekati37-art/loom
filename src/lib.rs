@@ -22,3 +22,5 @@ pub mod translate_typescript;
 pub mod translate_zig;
 
 pub mod semantic;
+
+pub mod types;

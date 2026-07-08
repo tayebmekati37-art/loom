@@ -1,8 +1,7 @@
-mod semantic;
-mod lowering;
 mod ast;
 mod interpreter;
 mod ir;
+mod lowering;
 mod migration;
 mod parser;
 mod parser_asm;
@@ -11,6 +10,7 @@ mod parser_jcl;
 mod parser_pli;
 mod parser_rpg;
 mod pic_parser;
+mod semantic;
 mod translate_csharp;
 mod translate_dart;
 mod translate_go;
@@ -22,6 +22,7 @@ mod translate_rust;
 mod translate_swift;
 mod translate_typescript;
 mod translate_zig;
+mod types;
 
 use clap::{Parser as ClapParser, Subcommand};
 use rand::Rng;
@@ -320,13 +321,9 @@ fn generate_test_cases(func: &ir::Function) -> anyhow::Result<Vec<HashMap<String
     Ok(tests)
 }
 
-fn collect_variables(
-    stmts: &[ir::Statement],
-    set: &mut std::collections::HashSet<String>,
-) {
+fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSet<String>) {
     for stmt in stmts {
         match stmt {
-
             ir::Statement::Add { target, .. } => {
                 set.insert(target.clone());
             }
@@ -344,7 +341,6 @@ fn collect_variables(
                 then_branch,
                 else_branch,
             } => {
-
                 set.insert(condition.left.clone());
 
                 collect_variables(then_branch, set);
@@ -358,11 +354,7 @@ fn collect_variables(
                 collect_variables(body, set);
             }
 
-            ir::Statement::PerformUntil {
-                condition,
-                body,
-            } => {
-
+            ir::Statement::PerformUntil { condition, body } => {
                 set.insert(condition.left.clone());
 
                 collect_variables(body, set);
@@ -371,30 +363,16 @@ fn collect_variables(
             ir::Statement::Compute { target, .. } => {
                 set.insert(target.clone());
             }
-            
-            ir::Statement::For {
-                variable,
-                body,
-                ..
-            } => {
 
+            ir::Statement::For { variable, body, .. } => {
                 set.insert(variable.clone());
 
                 collect_variables(body, set);
             }
 
+            ir::Statement::Display { .. } => {}
 
-            ir::Statement::Display { .. } => {},
-
-            
-            
             ir::Statement::Evaluate { .. } => {}
-
-
-
-
-
-           
 
             ir::Statement::String { .. } => {}
 
@@ -432,26 +410,17 @@ fn collect_variables(
 
             ir::Statement::Inspect { .. } => {}
             ir::Statement::PerformVarying {
-           variable,
-           from: _,
-          by: _,
-          until,
-          body,
-        } => {
-        set.insert(variable.clone());
-        set.insert(until.left.clone());
+                variable,
+                from: _,
+                by: _,
+                until,
+                body,
+            } => {
+                set.insert(variable.clone());
+                set.insert(until.left.clone());
 
-          collect_variables(body, set);
-}
+                collect_variables(body, set);
+            }
         }
     }
 }
-
-
-
-
-
-
-
-
-
