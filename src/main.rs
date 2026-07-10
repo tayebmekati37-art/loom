@@ -3,6 +3,7 @@ mod interpreter;
 mod ir;
 mod lowering;
 mod migration;
+mod optimizer;
 mod parser;
 mod parser_asm;
 mod parser_cobol;
