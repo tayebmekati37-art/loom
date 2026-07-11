@@ -1,4 +1,5 @@
 mod ast;
+mod cfg;
 mod interpreter;
 mod ir;
 mod lowering;
