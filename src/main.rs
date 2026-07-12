@@ -1,5 +1,6 @@
 mod ast;
 mod cfg;
+mod dataflow;
 mod interpreter;
 mod ir;
 mod lowering;
