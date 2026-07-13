@@ -45,6 +45,21 @@ pub enum Source {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
+    Subtract {
+        value: String,
+        target: String,
+    },
+
+    Multiply {
+        value: String,
+        target: String,
+    },
+
+    Divide {
+        value: String,
+        target: String,
+    },
+
     String {
         sources: Vec<String>,
         into: String,

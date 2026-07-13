@@ -331,6 +331,12 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
                 set.insert(target.clone());
             }
 
+            ir::Statement::Subtract { target, .. }
+            | ir::Statement::Multiply { target, .. }
+            | ir::Statement::Divide { target, .. } => {
+                set.insert(target.clone());
+            }
+
             ir::Statement::Move { source, target } => {
                 set.insert(target.clone());
 

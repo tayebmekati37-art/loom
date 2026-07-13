@@ -216,6 +216,10 @@ impl Interpreter {
             crate::ir::Statement::Exit => {}
             crate::ir::Statement::Inspect { .. } => {}
 
+            crate::ir::Statement::Subtract { .. }
+            | crate::ir::Statement::Multiply { .. }
+            | crate::ir::Statement::Divide { .. } => {}
+
             crate::ir::Statement::For { .. } => {}
 
             crate::ir::Statement::PerformUntil { condition, body } => {
