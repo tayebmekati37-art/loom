@@ -15,7 +15,24 @@ pub fn parse_picture(input: &str) -> Result<PictureClause, String> {
         text = text[1..].to_string();
     }
 
-    let usage = Usage::Display;
+    let mut usage = Usage::Display;
+
+    if text.ends_with(" COMP-3") {
+        usage = Usage::Comp3;
+        text = text.replace(" COMP-3", "");
+    }
+    else if text.ends_with(" COMP") {
+        usage = Usage::Comp;
+        text = text.replace(" COMP", "");
+    }
+    else if text.ends_with(" BINARY") {
+        usage = Usage::Binary;
+        text = text.replace(" BINARY", "");
+    }
+    else if text.ends_with(" DISPLAY") {
+        usage = Usage::Display;
+        text = text.replace(" DISPLAY", "");
+    }
 
     //--------------------------------------------------
     // PIC X
@@ -141,6 +158,64 @@ pub fn parse_picture(input: &str) -> Result<PictureClause, String> {
 
     }
 
+
+    //--------------------------------------------------
+    // Numeric with decimal
+    //--------------------------------------------------
+
+    if text.contains("V") {
+
+        let parts = text.Split("V");
+
+        if(parts.Length -eq 2){}
+
+        let left = parts[0];
+        let right = parts[1];
+
+        let mut int_len = 0usize;
+        let mut frac_len = 0usize;
+
+        if left.starts_with("9(") {
+
+            if let Some(end)=left.find(')'){
+
+                int_len = left[2..end].parse::<usize>().unwrap_or(0);
+
+            }
+
+        }
+
+        if right.starts_with("9("){
+
+            if let Some(end)=right.find(')'){
+
+                frac_len = right[2..end].parse::<usize>().unwrap_or(0);
+
+            }
+
+        } else {
+
+            frac_len = right.matches('9').count();
+
+        }
+
+        return Ok(PictureClause{
+
+            signed,
+
+            category:PictureCategory::Numeric,
+
+            length:int_len+frac_len,
+
+            scale:frac_len,
+
+            usage,
+
+        });
+
+    }
+
     Err(format!("Unsupported PIC: {}",input))
 
 }
+
