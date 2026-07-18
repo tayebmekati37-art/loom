@@ -1,3 +1,4 @@
+use crate::data_division::pic::PictureClause;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StringOperationSource {
     pub source: String,
@@ -256,6 +257,7 @@ pub enum UsageClause {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariableDefinition {
+    pub picture: Option<PictureClause>,
     pub name: String,
     pub pic: Option<PicType>,
     pub occurs: Option<usize>,

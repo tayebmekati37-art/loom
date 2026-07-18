@@ -1,11 +1,12 @@
-#[derive(Debug, Clone, PartialEq)]
+use serde::{Deserialize, Serialize};
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PictureCategory {
     Alphabetic,
     Alphanumeric,
     Numeric,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Usage {
     Display,
     Binary,
@@ -13,7 +14,7 @@ pub enum Usage {
     Comp3,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PictureClause {
     pub signed: bool,
     pub category: PictureCategory,

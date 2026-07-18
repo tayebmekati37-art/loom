@@ -1,7 +1,6 @@
 use super::ast::*;
 
 pub fn parse_picture(input: &str) -> Result<PictureClause, String> {
-
     let mut text = input.trim().to_uppercase();
 
     if text.starts_with("PIC ") {
@@ -20,16 +19,13 @@ pub fn parse_picture(input: &str) -> Result<PictureClause, String> {
     if text.ends_with(" COMP-3") {
         usage = Usage::Comp3;
         text = text.replace(" COMP-3", "");
-    }
-    else if text.ends_with(" COMP") {
+    } else if text.ends_with(" COMP") {
         usage = Usage::Comp;
         text = text.replace(" COMP", "");
-    }
-    else if text.ends_with(" BINARY") {
+    } else if text.ends_with(" BINARY") {
         usage = Usage::Binary;
         text = text.replace(" BINARY", "");
-    }
-    else if text.ends_with(" DISPLAY") {
+    } else if text.ends_with(" DISPLAY") {
         usage = Usage::Display;
         text = text.replace(" DISPLAY", "");
     }
@@ -39,15 +35,13 @@ pub fn parse_picture(input: &str) -> Result<PictureClause, String> {
     //--------------------------------------------------
 
     if text == "X" {
-
-        return Ok(PictureClause{
+        return Ok(PictureClause {
             signed,
             category: PictureCategory::Alphanumeric,
-            length:1,
-            scale:0,
+            length: 1,
+            scale: 0,
             usage,
         });
-
     }
 
     //--------------------------------------------------
@@ -55,21 +49,17 @@ pub fn parse_picture(input: &str) -> Result<PictureClause, String> {
     //--------------------------------------------------
 
     if text.starts_with("X(") {
+        if let Some(end) = text.find(')') {
+            let len = &text[2..end];
 
-        if let Some(end)=text.find(')'){
-
-            let len=&text[2..end];
-
-            if let Ok(length)=len.parse::<usize>(){
-
-                return Ok(PictureClause{
+            if let Ok(length) = len.parse::<usize>() {
+                return Ok(PictureClause {
                     signed,
-                    category:PictureCategory::Alphanumeric,
+                    category: PictureCategory::Alphanumeric,
                     length,
-                    scale:0,
+                    scale: 0,
                     usage,
                 });
-
             }
         }
     }
@@ -78,96 +68,80 @@ pub fn parse_picture(input: &str) -> Result<PictureClause, String> {
     // PIC A
     //--------------------------------------------------
 
-    if text=="A"{
-
-        return Ok(PictureClause{
+    if text == "A" {
+        return Ok(PictureClause {
             signed,
-            category:PictureCategory::Alphabetic,
-            length:1,
-            scale:0,
+            category: PictureCategory::Alphabetic,
+            length: 1,
+            scale: 0,
             usage,
         });
-
     }
 
     //--------------------------------------------------
     // PIC A(n)
     //--------------------------------------------------
 
-    if text.starts_with("A("){
+    if text.starts_with("A(") {
+        if let Some(end) = text.find(')') {
+            let len = &text[2..end];
 
-        if let Some(end)=text.find(')'){
-
-            let len=&text[2..end];
-
-            if let Ok(length)=len.parse::<usize>(){
-
-                return Ok(PictureClause{
+            if let Ok(length) = len.parse::<usize>() {
+                return Ok(PictureClause {
                     signed,
-                    category:PictureCategory::Alphabetic,
+                    category: PictureCategory::Alphabetic,
                     length,
-                    scale:0,
+                    scale: 0,
                     usage,
                 });
-
             }
-
         }
-
     }
 
     //--------------------------------------------------
     // PIC 9
     //--------------------------------------------------
 
-    if text=="9"{
-
-        return Ok(PictureClause{
+    if text == "9" {
+        return Ok(PictureClause {
             signed,
-            category:PictureCategory::Numeric,
-            length:1,
-            scale:0,
+            category: PictureCategory::Numeric,
+            length: 1,
+            scale: 0,
             usage,
         });
-
     }
 
     //--------------------------------------------------
     // PIC 9(n)
     //--------------------------------------------------
 
-    if text.starts_with("9("){
+    if text.starts_with("9(") {
+        if let Some(end) = text.find(')') {
+            let len = &text[2..end];
 
-        if let Some(end)=text.find(')'){
-
-            let len=&text[2..end];
-
-            if let Ok(length)=len.parse::<usize>(){
-
-                return Ok(PictureClause{
+            if let Ok(length) = len.parse::<usize>() {
+                return Ok(PictureClause {
                     signed,
-                    category:PictureCategory::Numeric,
+                    category: PictureCategory::Numeric,
                     length,
-                    scale:0,
+                    scale: 0,
                     usage,
                 });
-
             }
-
         }
-
     }
-
 
     //--------------------------------------------------
     // Numeric with decimal
     //--------------------------------------------------
 
     if text.contains("V") {
+        let parts: Vec<&str> = text.split('V').collect();
 
-        let parts = text.Split("V");
-
-        if(parts.Length -eq 2){}
+        if parts.len() != 2 {
+            return Err(format!("Invalid PIC: {}", input));
+        }
 
         let left = parts[0];
         let right = parts[1];
@@ -176,46 +150,31 @@ pub fn parse_picture(input: &str) -> Result<PictureClause, String> {
         let mut frac_len = 0usize;
 
         if left.starts_with("9(") {
-
-            if let Some(end)=left.find(')'){
-
+            if let Some(end) = left.find(')') {
                 int_len = left[2..end].parse::<usize>().unwrap_or(0);
-
             }
-
         }
 
-        if right.starts_with("9("){
-
-            if let Some(end)=right.find(')'){
-
+        if right.starts_with("9(") {
+            if let Some(end) = right.find(')') {
                 frac_len = right[2..end].parse::<usize>().unwrap_or(0);
-
             }
-
         } else {
-
             frac_len = right.matches('9').count();
-
         }
 
-        return Ok(PictureClause{
-
+        return Ok(PictureClause {
             signed,
 
-            category:PictureCategory::Numeric,
+            category: PictureCategory::Numeric,
 
-            length:int_len+frac_len,
+            length: int_len + frac_len,
 
-            scale:frac_len,
+            scale: frac_len,
 
             usage,
-
         });
-
     }
 
-    Err(format!("Unsupported PIC: {}",input))
-
+    Err(format!("Unsupported PIC: {}", input))
 }
-
