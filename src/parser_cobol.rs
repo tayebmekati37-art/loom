@@ -152,6 +152,7 @@ fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
     };
 
     Some(VariableDefinition {
+        picture: None,
         name,
         pic,
         occurs: None,
