@@ -135,6 +135,10 @@ pub enum Statement {
 
     Exit,
 
+    Copybook {
+        name: String,
+    },
+
     OpenFile {
         name: String,
         mode: FileMode,
