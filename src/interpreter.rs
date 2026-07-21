@@ -215,6 +215,8 @@ impl Interpreter {
             crate::ir::Statement::Continue => {}
             crate::ir::Statement::Exit => {}
             crate::ir::Statement::Copybook { .. } => {}
+
+            crate::ir::Statement::Replace { .. } => {}
             crate::ir::Statement::Inspect { .. } => {}
 
             crate::ir::Statement::Subtract { .. }

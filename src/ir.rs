@@ -46,6 +46,11 @@ pub enum Source {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
+    Replace {
+        from: String,
+        to: String,
+    },
+
     Subtract {
         value: String,
         target: String,
