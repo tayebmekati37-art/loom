@@ -213,6 +213,17 @@ fn parse_statement(line: &str) -> Result<Statement> {
             })
         }
 
+        "replace" => {
+            if parts.len() < 4 {
+                anyhow::bail!("Invalid REPLACE");
+            }
+
+            Ok(Statement::Replace {
+                from: parts[1].replace("==", ""),
+                to: parts[3].replace("==", ""),
+            })
+        }
+
         "perform" => {
             if parts.len() >= 3 && parts[1].eq_ignore_ascii_case("until") {
                 let cond = Condition {
