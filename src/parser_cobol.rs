@@ -213,6 +213,16 @@ fn parse_statement(line: &str) -> Result<Statement> {
             })
         }
 
+        "copy" => {
+            if parts.len() < 2 {
+                anyhow::bail!("Invalid COPY");
+            }
+
+            Ok(Statement::Copybook {
+                name: parts[1].trim_end_matches(".").to_string(),
+            })
+        }
+
         "replace" => {
             if parts.len() < 4 {
                 anyhow::bail!("Invalid REPLACE");
