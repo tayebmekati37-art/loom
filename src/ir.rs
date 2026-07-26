@@ -142,6 +142,7 @@ pub enum Statement {
 
     Copybook {
         name: String,
+        replacing: Vec<(String, String)>,
     },
 
     OpenFile {

@@ -220,6 +220,7 @@ fn parse_statement(line: &str) -> Result<Statement> {
 
             Ok(Statement::Copybook {
                 name: parts[1].trim_end_matches(".").to_string(),
+                replacing: Vec::new(),
             })
         }
 
