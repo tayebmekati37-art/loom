@@ -28,14 +28,34 @@ pub fn preprocess(source: &str) -> Result<String> {
         }
 
         if upper.starts_with("COPY ") {
-            let mut name = trimmed[5..].trim();
+            let parts: Vec<&str> = trimmed.split_whitespace().collect();
 
-            name = name.trim_end_matches('.');
+            let name = parts[1].trim_end_matches('.');
+
+            let mut local_text = String::new();
 
             let path = format!("copybooks/{}.cpy", name);
 
             if Path::new(&path).exists() {
-                output.push_str(&fs::read_to_string(&path)?);
+                local_text = fs::read_to_string(&path)?;
+
+                if let Some(pos) = upper.find("REPLACING") {
+                    let clause = &trimmed[pos + "REPLACING".len()..];
+
+                    if let Some((old, new)) = clause.split_once("BY") {
+                        let old = old.trim().trim_matches('=');
+
+                        let new = new.trim().trim_end_matches('.').trim_matches('=');
+
+                        local_text = local_text.replace(old, new);
+                    }
+                }
+
+                for (old, new) in &replacements {
+                    local_text = local_text.replace(old, new);
+                }
+
+                output.push_str(&local_text);
 
                 output.push('\n');
             } else {
