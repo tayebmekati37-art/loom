@@ -218,9 +218,21 @@ fn parse_statement(line: &str) -> Result<Statement> {
                 anyhow::bail!("Invalid COPY");
             }
 
+            let mut replacing = Vec::new();
+
+            if parts.len() >= 6
+                && parts[2].eq_ignore_ascii_case("REPLACING")
+                && parts[4].eq_ignore_ascii_case("BY")
+            {
+                replacing.push((
+                    parts[3].replace("==", ""),
+                    parts[5].trim_end_matches(".").replace("==", ""),
+                ));
+            }
+
             Ok(Statement::Copybook {
                 name: parts[1].trim_end_matches(".").to_string(),
-                replacing: Vec::new(),
+                replacing,
             })
         }
 
