@@ -123,6 +123,22 @@ fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
         return None;
     }
 
+    if parts[0] == "88" {
+        if parts.len() >= 4 && parts[2].eq_ignore_ascii_case("VALUE") {
+            return Some(VariableDefinition {
+                picture: None,
+                name: parts[1].to_string(),
+                pic: None,
+                occurs: None,
+                redefines: None,
+                initial_value: Some(Literal::String(parts[3].trim_end_matches(".").to_string())),
+                comp_type: None,
+            });
+        }
+
+        return None;
+    }
+
     if parts[0] != "01" {
         return None;
     }
