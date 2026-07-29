@@ -419,6 +419,7 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
             ir::Statement::Call { .. } => {}
 
             ir::Statement::Inspect { .. } => {}
+            ir::Statement::Initialize { .. } => {}
 
             ir::Statement::Copybook { .. } => {}
 
