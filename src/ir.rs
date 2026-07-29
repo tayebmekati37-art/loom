@@ -100,6 +100,10 @@ pub enum Statement {
         target: String,
     },
 
+    Initialize {
+        variable: String,
+    },
+
     Compute {
         target: String,
         expr: Expression,
@@ -263,6 +267,12 @@ pub enum UsageClause {
     Comp,
     Comp3,
     Binary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConditionName {
+    pub name: String,
+    pub value: Literal,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
