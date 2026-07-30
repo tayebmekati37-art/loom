@@ -1,3 +1,16 @@
+fn apply_replacements(text: String, replacements: &[(String, String)]) -> String {
+    let mut tokens: Vec<String> = text.split_whitespace().map(|s| s.to_string()).collect();
+
+    for token in &mut tokens {
+        for (old, new) in replacements {
+            if token == old {
+                *token = new.clone();
+            }
+        }
+    }
+
+    tokens.join(" ")
+}
 use anyhow::Result;
 use std::fs;
 use std::path::Path;
@@ -51,9 +64,7 @@ pub fn preprocess(source: &str) -> Result<String> {
                     }
                 }
 
-                for (old, new) in &replacements {
-                    local_text = local_text.replace(old, new);
-                }
+                local_text = apply_replacements(local_text, &replacements);
 
                 output.push_str(&local_text);
 
@@ -61,9 +72,7 @@ pub fn preprocess(source: &str) -> Result<String> {
             } else {
                 let mut expanded = line.to_string();
 
-                for (old, new) in &replacements {
-                    expanded = expanded.replace(old, new);
-                }
+                expanded = apply_replacements(expanded, &replacements);
 
                 output.push_str(&expanded);
 
@@ -72,9 +81,7 @@ pub fn preprocess(source: &str) -> Result<String> {
         } else {
             let mut expanded = line.to_string();
 
-            for (old, new) in &replacements {
-                expanded = expanded.replace(old, new);
-            }
+            expanded = apply_replacements(expanded, &replacements);
 
             output.push_str(&expanded);
 
