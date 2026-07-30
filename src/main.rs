@@ -420,6 +420,7 @@ fn collect_variables(stmts: &[ir::Statement], set: &mut std::collections::HashSe
 
             ir::Statement::Inspect { .. } => {}
             ir::Statement::Initialize { .. } => {}
+            ir::Statement::ExecSql { .. } => {}
 
             ir::Statement::Copybook { .. } => {}
 

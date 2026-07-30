@@ -48,6 +48,32 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
             i += 1;
             continue;
         }
+        if upper.starts_with("EXEC SQL") {
+            let mut sql = String::new();
+
+            i += 1;
+
+            while i < lines.len() {
+                let sql_line = lines[i].trim();
+
+                if sql_line.to_uppercase().starts_with("END-EXEC") {
+                    break;
+                }
+
+                sql.push_str(sql_line);
+                sql.push(' ');
+
+                i += 1;
+            }
+
+            statements.push(Statement::ExecSql {
+                sql: sql.trim().to_string(),
+            });
+
+            i += 1;
+            continue;
+        }
+
         if upper.starts_with("IF ") {
             let mut body = Vec::new();
 
