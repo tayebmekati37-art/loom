@@ -108,6 +108,10 @@ pub enum Statement {
         sql: String,
     },
 
+    DeclareSection {
+        begin: bool,
+    },
+
     Compute {
         target: String,
         expr: Expression,

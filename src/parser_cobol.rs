@@ -48,6 +48,36 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
             i += 1;
             continue;
         }
+        if upper.starts_with("EXEC SQL BEGIN DECLARE SECTION") {
+            statements.push(Statement::DeclareSection { begin: true });
+
+            while i < lines.len() {
+                if lines[i].trim().to_uppercase().starts_with("END-EXEC") {
+                    break;
+                }
+
+                i += 1;
+            }
+
+            i += 1;
+            continue;
+        }
+
+        if upper.starts_with("EXEC SQL END DECLARE SECTION") {
+            statements.push(Statement::DeclareSection { begin: false });
+
+            while i < lines.len() {
+                if lines[i].trim().to_uppercase().starts_with("END-EXEC") {
+                    break;
+                }
+
+                i += 1;
+            }
+
+            i += 1;
+            continue;
+        }
+
         if upper.starts_with("EXEC SQL") {
             let mut sql = String::new();
 
