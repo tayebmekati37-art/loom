@@ -219,6 +219,8 @@ impl Interpreter {
             crate::ir::Statement::Replace { .. } => {}
             crate::ir::Statement::Inspect { .. } => {}
             crate::ir::Statement::Initialize { .. } => {}
+            crate::ir::Statement::ExecSql { .. } => {}
+            crate::ir::Statement::DeclareSection { .. } => {}
 
             crate::ir::Statement::Subtract { .. }
             | crate::ir::Statement::Multiply { .. }

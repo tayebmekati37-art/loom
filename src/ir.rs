@@ -104,6 +104,14 @@ pub enum Statement {
         variable: String,
     },
 
+    ExecSql {
+        sql: String,
+    },
+
+    DeclareSection {
+        begin: bool,
+    },
+
     Compute {
         target: String,
         expr: Expression,
