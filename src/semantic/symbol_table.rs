@@ -1,6 +1,8 @@
 use crate::ir::*;
 use std::collections::HashMap;
 
+pub type ConditionMap = HashMap<String, Literal>;
+
 #[derive(Debug, Clone)]
 pub struct Symbol {
     pub name: String,
@@ -10,6 +12,10 @@ pub struct Symbol {
     pub occurs: Option<usize>,
 
     pub redefines: Option<String>,
+
+    pub initial_value: Option<Literal>,
+
+    pub condition_values: ConditionMap,
 }
 
 #[derive(Default)]
@@ -35,6 +41,10 @@ impl SymbolTable {
                 occurs: var.occurs,
 
                 redefines: var.redefines.clone(),
+
+                initial_value: var.initial_value.clone(),
+
+                condition_values: HashMap::new(),
             },
         );
     }
