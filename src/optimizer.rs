@@ -1,7 +1,9 @@
 use crate::ir::*;
+use std::collections::HashMap;
 
 pub fn optimize(program: &mut Program) {
     constant_folding(program);
+    constant_propagation(program);
     dead_code(program);
 }
 
@@ -52,4 +54,50 @@ fn dead_code(program: &mut Program) {
     }
 
     program.statements.retain(|s| !matches!(s, Statement::NoOp));
+}
+
+fn constant_propagation(program: &mut Program) {
+    let mut constants: HashMap<String, Literal> = HashMap::new();
+
+    for para in &mut program.paragraphs {
+        propagate_block(&mut para.statements, &mut constants);
+    }
+
+    propagate_block(&mut program.statements, &mut constants);
+}
+
+fn propagate_block(block: &mut Vec<Statement>, constants: &mut HashMap<String, Literal>) {
+    for stmt in block.iter_mut() {
+        match stmt {
+            Statement::Move { source, target } => match source {
+                Source::Literal(i) => {
+                    constants.insert(target.clone(), Literal::Int(*i));
+                }
+
+                Source::LiteralString(s) => {
+                    constants.insert(target.clone(), Literal::String(s.clone()));
+                }
+
+                Source::Variable(v) => {
+                    if let Some(value) = constants.get(v).cloned() {
+                        match value {
+                            Literal::Int(i) => {
+                                *source = Source::Literal(i);
+                            }
+
+                            Literal::String(ref s) => {
+                                *source = Source::LiteralString(s.clone());
+                            }
+                        }
+
+                        constants.insert(target.clone(), value);
+                    } else {
+                        constants.remove(target);
+                    }
+                }
+            },
+
+            _ => {}
+        }
+    }
 }
