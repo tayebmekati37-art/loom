@@ -1,20 +1,19 @@
-use super::symbol_table::*;
 use crate::ir::*;
 
-pub struct TypeChecker {
-    pub symbols: SymbolTable,
-}
+/// Performs semantic type checking.
+///
+/// Current implementation is a stub.
+///
+/// Future checks:
+/// - MOVE compatibility
+/// - COMPUTE expressions
+/// - PIC compatibility
+/// - Numeric/string conversions
+/// - OCCURS indexing
+/// - REDEFINES compatibility
+/// - SQL host variables
+pub fn check(_program: &Vec<Statement>) -> Vec<String> {
+    let diagnostics = Vec::new();
 
-impl TypeChecker {
-    pub fn new() -> Self {
-        Self {
-            symbols: SymbolTable::new(),
-        }
-    }
-
-    pub fn analyze(&mut self, program: &Program) {
-        for var in &program.variables {
-            self.symbols.insert(var);
-        }
-    }
+    diagnostics
 }
