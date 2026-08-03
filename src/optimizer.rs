@@ -5,6 +5,7 @@ pub fn optimize(program: &mut Program) {
     constant_folding(program);
     constant_propagation(program);
     copy_propagation(program);
+    dead_store_elimination(program);
     dead_code(program);
 }
 
@@ -141,4 +142,52 @@ fn propagate_copies(block: &mut Vec<Statement>, aliases: &mut HashMap<String, St
             _ => {}
         }
     }
+}
+
+fn dead_store_elimination(program: &mut Program) {
+    for para in &mut program.paragraphs {
+        eliminate_dead_stores(&mut para.statements);
+    }
+
+    eliminate_dead_stores(&mut program.statements);
+}
+
+fn eliminate_dead_stores(block: &mut Vec<Statement>) {
+    let mut live: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    block.reverse();
+
+    block.retain(|stmt| match stmt {
+        Statement::Move { source, target } => {
+            if let Source::Variable(v) = source {
+                live.insert(v.clone());
+            }
+
+            if live.contains(target) {
+                live.remove(target);
+
+                true
+            } else {
+                false
+            }
+        }
+
+        Statement::Compute { target, .. }
+        | Statement::Add { target, .. }
+        | Statement::Subtract { target, .. }
+        | Statement::Multiply { target, .. }
+        | Statement::Divide { target, .. } => {
+            if live.contains(target) {
+                live.remove(target);
+
+                true
+            } else {
+                false
+            }
+        }
+
+        _ => true,
+    });
+
+    block.reverse();
 }
