@@ -4,6 +4,7 @@ use std::collections::HashMap;
 pub fn optimize(program: &mut Program) {
     constant_folding(program);
     constant_propagation(program);
+    copy_propagation(program);
     dead_code(program);
 }
 
@@ -96,6 +97,46 @@ fn propagate_block(block: &mut Vec<Statement>, constants: &mut HashMap<String, L
                     }
                 }
             },
+
+            _ => {}
+        }
+    }
+}
+
+fn copy_propagation(program: &mut Program) {
+    let mut aliases: HashMap<String, String> = HashMap::new();
+
+    for para in &mut program.paragraphs {
+        propagate_copies(&mut para.statements, &mut aliases);
+    }
+
+    propagate_copies(&mut program.statements, &mut aliases);
+}
+
+fn propagate_copies(block: &mut Vec<Statement>, aliases: &mut HashMap<String, String>) {
+    for stmt in block.iter_mut() {
+        match stmt {
+            Statement::Move { source, target } => match source {
+                Source::Variable(v) => {
+                    if let Some(real) = aliases.get(v).cloned() {
+                        *v = real.clone();
+                    }
+
+                    aliases.insert(target.clone(), v.clone());
+                }
+
+                _ => {
+                    aliases.remove(target);
+                }
+            },
+
+            Statement::Compute { target, .. }
+            | Statement::Add { target, .. }
+            | Statement::Subtract { target, .. }
+            | Statement::Multiply { target, .. }
+            | Statement::Divide { target, .. } => {
+                aliases.remove(target);
+            }
 
             _ => {}
         }

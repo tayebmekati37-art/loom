@@ -22,13 +22,21 @@ impl ControlFlowGraph {
     pub fn build(program: &Program) -> Self {
         let mut cfg = Self::new();
 
-        cfg.blocks.push(BasicBlock {
-            id: 0,
+        let blocks = split_into_blocks(&program.statements);
 
-            statements: program.statements.clone(),
+        for (id, block) in blocks.into_iter().enumerate() {
+            let mut successors = Vec::new();
 
-            successors: Vec::new(),
-        });
+            if id + 1 < program.statements.len() {
+                successors.push(id + 1);
+            }
+
+            cfg.blocks.push(BasicBlock {
+                id,
+                statements: block,
+                successors,
+            });
+        }
 
         cfg
     }
@@ -42,4 +50,35 @@ impl ControlFlowGraph {
             println!("Successors: {:?}", block.successors);
         }
     }
+}
+
+fn split_into_blocks(statements: &[Statement]) -> Vec<Vec<Statement>> {
+    let mut blocks = Vec::new();
+
+    let mut current = Vec::new();
+
+    for stmt in statements {
+        current.push(stmt.clone());
+
+        match stmt {
+            Statement::If { .. }
+            | Statement::Perform { .. }
+            | Statement::PerformUntil { .. }
+            | Statement::PerformVarying { .. }
+            | Statement::Call { .. }
+            | Statement::StopRun => {
+                blocks.push(current);
+
+                current = Vec::new();
+            }
+
+            _ => {}
+        }
+    }
+
+    if !current.is_empty() {
+        blocks.push(current);
+    }
+
+    blocks
 }
