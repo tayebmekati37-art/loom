@@ -9,6 +9,10 @@ pub struct BasicBlock {
     pub successors: Vec<usize>,
 
     pub idom: Option<usize>,
+
+    pub dom_children: Vec<usize>,
+
+    pub dominance_frontier: Vec<usize>,
 }
 
 #[derive(Debug)]
@@ -41,6 +45,10 @@ impl ControlFlowGraph {
                 successors,
 
                 idom: None,
+
+                dom_children: Vec::new(),
+
+                dominance_frontier: Vec::new(),
             });
         }
 
@@ -164,4 +172,18 @@ pub fn compute_immediate_dominators(
     _dom: &[std::collections::HashSet<usize>],
 ) -> Vec<Option<usize>> {
     vec![None; cfg.blocks.len()]
+}
+
+pub fn build_dominator_tree(cfg: &mut ControlFlowGraph) {
+    for block in &mut cfg.blocks {
+        block.dom_children.clear();
+    }
+
+    let count = cfg.blocks.len();
+
+    for child in 1..count {
+        if let Some(parent) = cfg.blocks[child].idom {
+            cfg.blocks[parent].dom_children.push(child);
+        }
+    }
 }
