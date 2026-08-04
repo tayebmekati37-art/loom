@@ -7,6 +7,8 @@ pub struct BasicBlock {
     pub statements: Vec<Statement>,
 
     pub successors: Vec<usize>,
+
+    pub idom: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -37,7 +39,17 @@ impl ControlFlowGraph {
                 id,
                 statements: block,
                 successors,
+
+                idom: None,
             });
+        }
+
+        let dom = compute_dominators(&cfg);
+
+        let idom = compute_immediate_dominators(&cfg, &dom);
+
+        for i in 0..cfg.blocks.len() {
+            cfg.blocks[i].idom = idom[i];
         }
 
         cfg
@@ -50,6 +62,8 @@ impl ControlFlowGraph {
             println!("Block {} ({} statements)", block.id, block.statements.len());
 
             println!("Successors: {:?}", block.successors);
+
+            println!("idom({}) = {:?}", block.id, block.idom);
         }
     }
 }
@@ -143,4 +157,11 @@ fn predecessors(cfg: &ControlFlowGraph, block: usize) -> Vec<usize> {
     }
 
     preds
+}
+
+pub fn compute_immediate_dominators(
+    cfg: &ControlFlowGraph,
+    _dom: &[std::collections::HashSet<usize>],
+) -> Vec<Option<usize>> {
+    vec![None; cfg.blocks.len()]
 }
