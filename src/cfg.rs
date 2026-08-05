@@ -72,6 +72,10 @@ impl ControlFlowGraph {
             println!("Successors: {:?}", block.successors);
 
             println!("idom({}) = {:?}", block.id, block.idom);
+
+            println!("Dominator Children: {:?}", block.dom_children);
+
+            println!("Dominance Frontier: {:?}", block.dominance_frontier);
         }
     }
 }
@@ -185,5 +189,19 @@ pub fn build_dominator_tree(cfg: &mut ControlFlowGraph) {
         if let Some(parent) = cfg.blocks[child].idom {
             cfg.blocks[parent].dom_children.push(child);
         }
+    }
+}
+
+pub fn compute_dominance_frontier(cfg: &mut ControlFlowGraph) {
+    for block in &mut cfg.blocks {
+        block.dominance_frontier.clear();
+    }
+}
+
+fn compute_df_recursive(cfg: &mut ControlFlowGraph, node: usize) {
+    let children = cfg.blocks[node].dom_children.clone();
+
+    for child in children {
+        compute_df_recursive(cfg, child);
     }
 }
