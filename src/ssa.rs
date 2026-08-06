@@ -25,3 +25,15 @@ pub fn convert_to_ssa(_program: &mut Program) {
 pub fn rename_variable(name: &str, version: usize) -> String {
     format!("{}_{}", name, version)
 }
+
+pub fn rename_move_targets(program: &mut Program) {
+    let mut counter = VersionCounter::default();
+
+    for stmt in &mut program.statements {
+        if let Statement::Move { target, .. } = stmt {
+            let version = counter.next_version(target);
+
+            *target = rename_variable(target, version);
+        }
+    }
+}
