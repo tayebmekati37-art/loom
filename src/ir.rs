@@ -292,6 +292,8 @@ pub struct VariableDefinition {
     pub redefines: Option<String>,
     pub initial_value: Option<Literal>,
     pub comp_type: Option<CompType>,
+
+    pub ssa_version: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

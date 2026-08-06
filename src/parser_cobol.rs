@@ -189,6 +189,7 @@ fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
                 redefines: None,
                 initial_value: Some(Literal::String(parts[3].trim_end_matches(".").to_string())),
                 comp_type: None,
+                ssa_version: None,
             });
         }
 
@@ -231,6 +232,8 @@ fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
         redefines: None,
         initial_value: None,
         comp_type,
+
+        ssa_version: None,
     })
 }
 fn parse_statement(line: &str) -> Result<Statement> {
