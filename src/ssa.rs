@@ -21,3 +21,7 @@ pub fn convert_to_ssa(_program: &mut Program) {
 
     println!("SSA placeholder version {}", counter.next_version("TEMP"));
 }
+
+pub fn rename_variable(name: &str, version: usize) -> String {
+    format!("{}_{}", name, version)
+}
