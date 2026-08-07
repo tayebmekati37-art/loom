@@ -71,3 +71,51 @@ pub fn rename_arithmetic_targets(program: &mut Program, counter: &mut VersionCou
         *target = rename_variable(target, version);
     }
 }
+
+pub fn rename_variable_uses(
+    program:&mut Program
+){
+
+    use std::collections::HashMap;
+
+    let mut latest:HashMap<String,String>=HashMap::new();
+
+    for stmt in &mut program.statements{
+
+        match stmt{
+
+            Statement::Move{
+
+                source,
+                target
+
+            }=>{
+
+                if let Source::Variable(name)=source{
+
+                    if let Some(current)=latest.get(name){
+
+                        *name=current.clone();
+
+                    }
+
+                }
+
+                latest.insert(
+                    target
+                        .split("_")
+                        .next()
+                        .unwrap()
+                        .to_string(),
+                    target.clone()
+                );
+
+            }
+
+            _=>{}
+
+        }
+
+    }
+
+}
