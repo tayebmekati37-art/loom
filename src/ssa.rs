@@ -72,6 +72,30 @@ pub fn rename_arithmetic_targets(program: &mut Program, counter: &mut VersionCou
     }
 }
 
+
+fn rename_condition(
+
+    cond:&mut Condition,
+
+    latest:&std::collections::HashMap<String,String>
+
+){
+
+    if let Some(name)=latest.get(&cond.left){
+
+        cond.left=name.clone();
+
+    }
+
+    if let Some(name)=latest.get(&cond.right){
+
+        cond.right=name.clone();
+
+    }
+
+}
+
+
 pub fn rename_variable_uses(
     program:&mut Program
 ){
@@ -140,6 +164,42 @@ pub fn rename_variable_uses(
 
             }
 
+            Statement::If{
+
+                condition,
+
+                ..
+
+            }=>{
+
+                rename_condition(condition,&latest);
+
+            }
+
+            Statement::PerformUntil{
+
+                condition,
+
+                ..
+
+            }=>{
+
+                rename_condition(condition,&latest);
+
+            }
+
+            Statement::PerformVarying{
+
+                until,
+
+                ..
+
+            }=>{
+
+                rename_condition(until,&latest);
+
+            }
+
             _=>{}
 
         }
@@ -189,3 +249,5 @@ fn rename_expression(
     }
 
 }
+
+
