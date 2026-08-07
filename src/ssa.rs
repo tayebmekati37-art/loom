@@ -112,9 +112,79 @@ pub fn rename_variable_uses(
 
             }
 
+            Statement::Compute{
+
+                expr,
+
+                target,
+
+            }=>{
+
+                rename_expression(expr,&latest);
+
+                latest.insert(
+
+                    target
+
+                        .split("_")
+
+                        .next()
+
+                        .unwrap()
+
+                        .to_string(),
+
+                    target.clone()
+
+                );
+
+            }
+
             _=>{}
 
         }
+
+    }
+
+}
+
+fn rename_expression(
+
+    expr:&mut Expression,
+
+    latest:&std::collections::HashMap<String,String>
+
+){
+
+    match expr{
+
+        Expression::Variable(name)=>{
+
+            if let Some(current)=latest.get(name){
+
+                *name=current.clone();
+
+            }
+
+        }
+
+        Expression::Binary{
+
+            left,
+
+            right,
+
+            ..
+
+        }=>{
+
+            rename_expression(left,latest);
+
+            rename_expression(right,latest);
+
+        }
+
+        _=>{}
 
     }
 
