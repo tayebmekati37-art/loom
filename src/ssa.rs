@@ -49,3 +49,25 @@ pub fn rename_compute_targets(program: &mut Program) {
         }
     }
 }
+
+pub fn rename_arithmetic_targets(program: &mut Program, counter: &mut VersionCounter) {
+    for stmt in &mut program.statements {
+        let target = match stmt {
+            Statement::Add { target, .. } => target,
+
+            Statement::Subtract { target, .. } => target,
+
+            Statement::Multiply { target, .. } => target,
+
+            Statement::Divide { target, .. } => target,
+
+            Statement::Initialize { variable } => variable,
+
+            _ => continue,
+        };
+
+        let version = counter.next_version(target);
+
+        *target = rename_variable(target, version);
+    }
+}
