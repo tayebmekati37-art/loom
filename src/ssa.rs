@@ -72,182 +72,124 @@ pub fn rename_arithmetic_targets(program: &mut Program, counter: &mut VersionCou
     }
 }
 
-
-fn rename_condition(
-
-    cond:&mut Condition,
-
-    latest:&std::collections::HashMap<String,String>
-
-){
-
-    if let Some(name)=latest.get(&cond.left){
-
-        cond.left=name.clone();
-
+fn rename_condition(cond: &mut Condition, latest: &std::collections::HashMap<String, String>) {
+    if let Some(name) = latest.get(&cond.left) {
+        cond.left = name.clone();
     }
 
-    if let Some(name)=latest.get(&cond.right){
-
-        cond.right=name.clone();
-
+    if let Some(name) = latest.get(&cond.right) {
+        cond.right = name.clone();
     }
-
 }
 
+pub fn rename_variable_uses(program: &mut Program) {
+    let mut latest: HashMap<String, String> = HashMap::new();
 
-pub fn rename_variable_uses(
-    program:&mut Program
-){
-
-    use std::collections::HashMap;
-
-    let mut latest:HashMap<String,String>=HashMap::new();
-
-    for stmt in &mut program.statements{
-
-        match stmt{
-
-            Statement::Move{
-
-                source,
-                target
-
-            }=>{
-
-                if let Source::Variable(name)=source{
-
-                    if let Some(current)=latest.get(name){
-
-                        *name=current.clone();
-
+    for stmt in &mut program.statements {
+        match stmt {
+            Statement::Move { source, target } => {
+                if let Source::Variable(name) = source {
+                    if let Some(current) = latest.get(name) {
+                        *name = current.clone();
                     }
-
                 }
 
                 latest.insert(
-                    target
-                        .split("_")
-                        .next()
-                        .unwrap()
-                        .to_string(),
-                    target.clone()
+                    target.split("_").next().unwrap().to_string(),
+                    target.clone(),
                 );
-
             }
 
-            Statement::Compute{
-
-                expr,
-
-                target,
-
-            }=>{
-
-                rename_expression(expr,&latest);
+            Statement::Compute { expr, target } => {
+                rename_expression(expr, &latest);
 
                 latest.insert(
-
-                    target
-
-                        .split("_")
-
-                        .next()
-
-                        .unwrap()
-
-                        .to_string(),
-
-                    target.clone()
-
+                    target.split("_").next().unwrap().to_string(),
+                    target.clone(),
                 );
-
             }
 
-            Statement::If{
-
-                condition,
-
-                ..
-
-            }=>{
-
-                rename_condition(condition,&latest);
-
+            Statement::If { condition, .. } => {
+                rename_condition(condition, &latest);
             }
 
-            Statement::PerformUntil{
-
-                condition,
-
-                ..
-
-            }=>{
-
-                rename_condition(condition,&latest);
-
+            Statement::PerformUntil { condition, .. } => {
+                rename_condition(condition, &latest);
             }
 
-            Statement::PerformVarying{
-
-                until,
-
-                ..
-
-            }=>{
-
-                rename_condition(until,&latest);
-
+            Statement::PerformVarying { until, .. } => {
+                rename_condition(until, &latest);
             }
 
-            _=>{}
-
+            _ => {}
         }
-
     }
-
 }
 
-fn rename_expression(
-
-    expr:&mut Expression,
-
-    latest:&std::collections::HashMap<String,String>
-
-){
-
-    match expr{
-
-        Expression::Variable(name)=>{
-
-            if let Some(current)=latest.get(name){
-
-                *name=current.clone();
-
+fn rename_expression(expr: &mut Expression, latest: &std::collections::HashMap<String, String>) {
+    match expr {
+        Expression::Variable(name) => {
+            if let Some(current) = latest.get(name) {
+                *name = current.clone();
             }
-
         }
 
-        Expression::Binary{
+        Expression::Binary { left, right, .. } => {
+            rename_expression(left, latest);
 
-            left,
-
-            right,
-
-            ..
-
-        }=>{
-
-            rename_expression(left,latest);
-
-            rename_expression(right,latest);
-
+            rename_expression(right, latest);
         }
 
-        _=>{}
-
+        _ => {}
     }
-
 }
 
+#[derive(Debug, Default)]
 
+pub struct UseDefChains {
+    pub defs: HashMap<String, usize>,
+
+    pub uses: HashMap<String, Vec<usize>>,
+}
+
+pub fn build_use_def_chains(program: &Program) -> UseDefChains {
+    let mut chains = UseDefChains::default();
+
+    for (index, stmt) in program.statements.iter().enumerate() {
+        match stmt {
+            Statement::Move { source, target } => {
+                chains.defs.insert(target.clone(), index);
+
+                if let Source::Variable(name) = source {
+                    chains.uses.entry(name.clone()).or_default().push(index);
+                }
+            }
+
+            Statement::Compute { target, expr } => {
+                chains.defs.insert(target.clone(), index);
+
+                collect_expression_uses(expr, index, &mut chains);
+            }
+
+            _ => {}
+        }
+    }
+
+    chains
+}
+
+fn collect_expression_uses(expr: &Expression, index: usize, chains: &mut UseDefChains) {
+    match expr {
+        Expression::Variable(name) => {
+            chains.uses.entry(name.clone()).or_default().push(index);
+        }
+
+        Expression::Binary { left, right, .. } => {
+            collect_expression_uses(left, index, chains);
+
+            collect_expression_uses(right, index, chains);
+        }
+
+        _ => {}
+    }
+}
