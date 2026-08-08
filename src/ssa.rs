@@ -171,6 +171,18 @@ pub fn build_use_def_chains(program: &Program) -> UseDefChains {
                 collect_expression_uses(expr, index, &mut chains);
             }
 
+            Statement::If { condition, .. } => {
+                collect_condition_uses(condition, index, &mut chains);
+            }
+
+            Statement::PerformUntil { condition, .. } => {
+                collect_condition_uses(condition, index, &mut chains);
+            }
+
+            Statement::PerformVarying { until, .. } => {
+                collect_condition_uses(until, index, &mut chains);
+            }
+
             _ => {}
         }
     }
@@ -178,6 +190,23 @@ pub fn build_use_def_chains(program: &Program) -> UseDefChains {
     chains
 }
 
+fn collect_condition_uses(condition: &Condition, index: usize, chains: &mut UseDefChains) {
+    if !condition.left.is_empty() {
+        chains
+            .uses
+            .entry(condition.left.clone())
+            .or_default()
+            .push(index);
+    }
+
+    if !condition.right.is_empty() {
+        chains
+            .uses
+            .entry(condition.right.clone())
+            .or_default()
+            .push(index);
+    }
+}
 fn collect_expression_uses(expr: &Expression, index: usize, chains: &mut UseDefChains) {
     match expr {
         Expression::Variable(name) => {
