@@ -183,6 +183,12 @@ pub fn build_use_def_chains(program: &Program) -> UseDefChains {
                 collect_condition_uses(until, index, &mut chains);
             }
 
+            Statement::Call { using_args, .. } => {
+                for name in using_args {
+                    chains.uses.entry(name.clone()).or_default().push(index);
+                }
+            }
+
             _ => {}
         }
     }
