@@ -189,6 +189,22 @@ pub fn build_use_def_chains(program: &Program) -> UseDefChains {
                 }
             }
 
+            Statement::String { sources, into } => {
+                for name in sources {
+                    chains.uses.entry(name.clone()).or_default().push(index);
+                }
+
+                chains.defs.insert(into.clone(), index);
+            }
+
+            Statement::Unstring { source, into } => {
+                chains.uses.entry(source.clone()).or_default().push(index);
+
+                for name in into {
+                    chains.defs.insert(name.clone(), index);
+                }
+            }
+
             _ => {}
         }
     }
