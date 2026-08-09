@@ -171,6 +171,48 @@ pub fn build_use_def_chains(program: &Program) -> UseDefChains {
                 collect_expression_uses(expr, index, &mut chains);
             }
 
+            Statement::If { condition, .. } => {
+                collect_condition_uses(condition, index, &mut chains);
+            }
+
+            Statement::PerformUntil { condition, .. } => {
+                collect_condition_uses(condition, index, &mut chains);
+            }
+
+            Statement::PerformVarying { until, .. } => {
+                collect_condition_uses(until, index, &mut chains);
+            }
+
+            Statement::Call { using_args, .. } => {
+                for name in using_args {
+                    chains.uses.entry(name.clone()).or_default().push(index);
+                }
+            }
+
+            Statement::String { sources, into } => {
+                for name in sources {
+                    chains.uses.entry(name.clone()).or_default().push(index);
+                }
+
+                chains.defs.insert(into.clone(), index);
+            }
+
+            Statement::Unstring { source, into } => {
+                chains.uses.entry(source.clone()).or_default().push(index);
+
+                for name in into {
+                    chains.defs.insert(name.clone(), index);
+                }
+            }
+
+            Statement::Subtract { value, target }
+            | Statement::Multiply { value, target }
+            | Statement::Divide { value, target } => {
+                chains.uses.entry(value.clone()).or_default().push(index);
+
+                chains.defs.insert(target.clone(), index);
+            }
+
             _ => {}
         }
     }
@@ -178,6 +220,23 @@ pub fn build_use_def_chains(program: &Program) -> UseDefChains {
     chains
 }
 
+fn collect_condition_uses(condition: &Condition, index: usize, chains: &mut UseDefChains) {
+    if !condition.left.is_empty() {
+        chains
+            .uses
+            .entry(condition.left.clone())
+            .or_default()
+            .push(index);
+    }
+
+    if !condition.right.is_empty() {
+        chains
+            .uses
+            .entry(condition.right.clone())
+            .or_default()
+            .push(index);
+    }
+}
 fn collect_expression_uses(expr: &Expression, index: usize, chains: &mut UseDefChains) {
     match expr {
         Expression::Variable(name) => {
@@ -191,5 +250,93 @@ fn collect_expression_uses(expr: &Expression, index: usize, chains: &mut UseDefC
         }
 
         _ => {}
+    }
+}
+
+pub fn print_use_def_chains(chains: &UseDefChains) {
+    println!("");
+
+    println!("=== USE-DEF CHAINS ===");
+
+    let mut names: Vec<&String> = chains.defs.keys().chain(chains.uses.keys()).collect();
+
+    names.sort();
+
+    names.dedup();
+
+    for name in names {
+        let definition = chains.defs.get(name);
+
+        let uses = chains.uses.get(name).cloned().unwrap_or_default();
+
+        println!("{} -> def: {:?}, uses: {:?}", name, definition, uses);
+    }
+
+    println!("");
+}
+
+#[cfg(test)]
+mod use_def_tests {
+
+    use super::*;
+
+    #[test]
+    fn test_use_def_chains() {
+        let program = Program {
+            variables: Vec::new(),
+
+            paragraphs: Vec::new(),
+
+            statements: vec![
+                Statement::Move {
+                    source: Source::Literal(10),
+
+                    target: "A".to_string(),
+                },
+                Statement::Move {
+                    source: Source::Literal(20),
+
+                    target: "B".to_string(),
+                },
+                Statement::Compute {
+                    target: "C".to_string(),
+
+                    expr: Expression::Binary {
+                        left: Box::new(Expression::Variable("A".to_string())),
+
+                        operator: "+".to_string(),
+
+                        right: Box::new(Expression::Variable("B".to_string())),
+                    },
+                },
+                Statement::If {
+                    condition: Condition {
+                        left: "C".to_string(),
+
+                        operator: ">".to_string(),
+
+                        right: "A".to_string(),
+                    },
+
+                    then_branch: Vec::new(),
+
+                    else_branch: None,
+                },
+            ],
+        };
+
+        let chains = build_use_def_chains(&program);
+
+        assert_eq!(chains.defs.get("A"), Some(&0));
+
+        assert_eq!(chains.defs.get("B"), Some(&1));
+
+        assert_eq!(chains.defs.get("C"), Some(&2));
+
+        assert_eq!(chains.uses.get("A"), Some(&vec![2, 3]));
+
+        assert_eq!(chains.uses.get("B"), Some(&vec![2]));
+
+        assert_eq!(chains.uses.get("C"), Some(&vec![3]));
     }
 }
