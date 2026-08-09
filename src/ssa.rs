@@ -205,6 +205,14 @@ pub fn build_use_def_chains(program: &Program) -> UseDefChains {
                 }
             }
 
+            Statement::Subtract { value, target }
+            | Statement::Multiply { value, target }
+            | Statement::Divide { value, target } => {
+                chains.uses.entry(value.clone()).or_default().push(index);
+
+                chains.defs.insert(target.clone(), index);
+            }
+
             _ => {}
         }
     }
@@ -242,5 +250,93 @@ fn collect_expression_uses(expr: &Expression, index: usize, chains: &mut UseDefC
         }
 
         _ => {}
+    }
+}
+
+pub fn print_use_def_chains(chains: &UseDefChains) {
+    println!("");
+
+    println!("=== USE-DEF CHAINS ===");
+
+    let mut names: Vec<&String> = chains.defs.keys().chain(chains.uses.keys()).collect();
+
+    names.sort();
+
+    names.dedup();
+
+    for name in names {
+        let definition = chains.defs.get(name);
+
+        let uses = chains.uses.get(name).cloned().unwrap_or_default();
+
+        println!("{} -> def: {:?}, uses: {:?}", name, definition, uses);
+    }
+
+    println!("");
+}
+
+#[cfg(test)]
+mod use_def_tests {
+
+    use super::*;
+
+    #[test]
+    fn test_use_def_chains() {
+        let program = Program {
+            variables: Vec::new(),
+
+            paragraphs: Vec::new(),
+
+            statements: vec![
+                Statement::Move {
+                    source: Source::Literal(10),
+
+                    target: "A".to_string(),
+                },
+                Statement::Move {
+                    source: Source::Literal(20),
+
+                    target: "B".to_string(),
+                },
+                Statement::Compute {
+                    target: "C".to_string(),
+
+                    expr: Expression::Binary {
+                        left: Box::new(Expression::Variable("A".to_string())),
+
+                        operator: "+".to_string(),
+
+                        right: Box::new(Expression::Variable("B".to_string())),
+                    },
+                },
+                Statement::If {
+                    condition: Condition {
+                        left: "C".to_string(),
+
+                        operator: ">".to_string(),
+
+                        right: "A".to_string(),
+                    },
+
+                    then_branch: Vec::new(),
+
+                    else_branch: None,
+                },
+            ],
+        };
+
+        let chains = build_use_def_chains(&program);
+
+        assert_eq!(chains.defs.get("A"), Some(&0));
+
+        assert_eq!(chains.defs.get("B"), Some(&1));
+
+        assert_eq!(chains.defs.get("C"), Some(&2));
+
+        assert_eq!(chains.uses.get("A"), Some(&vec![2, 3]));
+
+        assert_eq!(chains.uses.get("B"), Some(&vec![2]));
+
+        assert_eq!(chains.uses.get("C"), Some(&vec![3]));
     }
 }
