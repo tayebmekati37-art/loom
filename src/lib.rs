@@ -1,3 +1,4 @@
+pub mod cfg;
 pub mod data_division;
 pub mod interpreter;
 pub mod ir;

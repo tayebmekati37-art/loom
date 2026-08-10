@@ -1,3 +1,4 @@
+use crate::cfg::ControlFlowGraph;
 use crate::ir::*;
 use std::collections::HashMap;
 
@@ -147,7 +148,7 @@ fn rename_expression(expr: &mut Expression, latest: &std::collections::HashMap<S
 #[derive(Debug, Default)]
 
 pub struct UseDefChains {
-    pub defs: HashMap<String, usize>,
+    pub defs: HashMap<String, Vec<usize>>,
 
     pub uses: HashMap<String, Vec<usize>>,
 }
@@ -158,7 +159,7 @@ pub fn build_use_def_chains(program: &Program) -> UseDefChains {
     for (index, stmt) in program.statements.iter().enumerate() {
         match stmt {
             Statement::Move { source, target } => {
-                chains.defs.insert(target.clone(), index);
+                chains.defs.entry(target.clone()).or_default().push(index);
 
                 if let Source::Variable(name) = source {
                     chains.uses.entry(name.clone()).or_default().push(index);
@@ -166,7 +167,7 @@ pub fn build_use_def_chains(program: &Program) -> UseDefChains {
             }
 
             Statement::Compute { target, expr } => {
-                chains.defs.insert(target.clone(), index);
+                chains.defs.entry(target.clone()).or_default().push(index);
 
                 collect_expression_uses(expr, index, &mut chains);
             }
@@ -194,14 +195,14 @@ pub fn build_use_def_chains(program: &Program) -> UseDefChains {
                     chains.uses.entry(name.clone()).or_default().push(index);
                 }
 
-                chains.defs.insert(into.clone(), index);
+                chains.defs.entry(into.clone()).or_default().push(index);
             }
 
             Statement::Unstring { source, into } => {
                 chains.uses.entry(source.clone()).or_default().push(index);
 
                 for name in into {
-                    chains.defs.insert(name.clone(), index);
+                    chains.defs.entry(name.clone()).or_default().push(index);
                 }
             }
 
@@ -210,7 +211,7 @@ pub fn build_use_def_chains(program: &Program) -> UseDefChains {
             | Statement::Divide { value, target } => {
                 chains.uses.entry(value.clone()).or_default().push(index);
 
-                chains.defs.insert(target.clone(), index);
+                chains.defs.entry(target.clone()).or_default().push(index);
             }
 
             _ => {}
@@ -265,11 +266,11 @@ pub fn print_use_def_chains(chains: &UseDefChains) {
     names.dedup();
 
     for name in names {
-        let definition = chains.defs.get(name);
+        let definitions = chains.defs.get(name);
 
         let uses = chains.uses.get(name).cloned().unwrap_or_default();
 
-        println!("{} -> def: {:?}, uses: {:?}", name, definition, uses);
+        println!("{} -> defs: {:?}, uses: {:?}", name, definitions, uses);
     }
 
     println!("");
@@ -327,11 +328,11 @@ mod use_def_tests {
 
         let chains = build_use_def_chains(&program);
 
-        assert_eq!(chains.defs.get("A"), Some(&0));
+        assert_eq!(chains.defs.get("A"), Some(&vec![0]));
 
-        assert_eq!(chains.defs.get("B"), Some(&1));
+        assert_eq!(chains.defs.get("B"), Some(&vec![1]));
 
-        assert_eq!(chains.defs.get("C"), Some(&2));
+        assert_eq!(chains.defs.get("C"), Some(&vec![2]));
 
         assert_eq!(chains.uses.get("A"), Some(&vec![2, 3]));
 
@@ -339,4 +340,76 @@ mod use_def_tests {
 
         assert_eq!(chains.uses.get("C"), Some(&vec![3]));
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct PhiCandidate {
+    pub variable: String,
+    pub block: usize,
+}
+
+pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<PhiCandidate> {
+    let mut candidates = Vec::new();
+
+    let chains = build_use_def_chains(program);
+
+    // Build a mapping from statement index to CFG block.
+    let mut statement_to_block = HashMap::new();
+
+    for (block_id, block) in cfg.blocks.iter().enumerate() {
+        for statement in &block.statements {
+            let _ = statement;
+        }
+    }
+
+    // The CFG blocks contain cloned statements, so match definitions
+    // against the program statement sequence to recover block ownership.
+    let mut statement_index = 0usize;
+
+    for (block_id, block) in cfg.blocks.iter().enumerate() {
+        for _statement in &block.statements {
+            statement_to_block.insert(statement_index, block_id);
+            statement_index += 1;
+        }
+    }
+
+    for (variable, definitions) in &chains.defs {
+        if definitions.len() < 2 {
+            continue;
+        }
+
+        let mut definition_blocks = Vec::new();
+
+        for definition_index in definitions {
+            if let Some(block_id) = statement_to_block.get(definition_index) {
+                definition_blocks.push(*block_id);
+            }
+        }
+
+        definition_blocks.sort_unstable();
+        definition_blocks.dedup();
+
+        if definition_blocks.len() < 2 {
+            continue;
+        }
+
+        for definition_block in definition_blocks {
+            for frontier_block in &cfg.blocks[definition_block].dominance_frontier {
+                let candidate = PhiCandidate {
+                    variable: variable.clone(),
+                    block: *frontier_block,
+                };
+
+                if !candidates.iter().any(|existing: &PhiCandidate| {
+                    existing.variable == candidate.variable && existing.block == candidate.block
+                }) {
+                    candidates.push(candidate);
+                }
+            }
+        }
+    }
+
+    candidates.sort_by(|a, b| a.variable.cmp(&b.variable).then(a.block.cmp(&b.block)));
+
+    candidates
 }
