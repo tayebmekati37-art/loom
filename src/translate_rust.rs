@@ -1,4 +1,4 @@
-use crate::ir::*;
+﻿use crate::ir::*;
 use std::fmt::Write;
 
 pub fn translate_program(program: &Program) -> String {
@@ -106,6 +106,21 @@ fn translate_statement(stmt: &Statement, level: usize, out: &mut String) {
         }
     }
 }
-pub fn translate_function(func: &crate::ir::Function) -> String {
-    format!("{:#?}", func)
+pub fn translate(function: &Function) -> String {
+    let mut out = String::new();
+
+    writeln!(out, "fn {}() {{", function.name).unwrap();
+
+    for stmt in &function.body {
+        translate_statement(stmt, 1, &mut out);
+    }
+
+    writeln!(out, "}}").unwrap();
+
+    out
 }
+
+pub fn translate_function(function: &Function) -> String {
+    translate(function)
+}
+
