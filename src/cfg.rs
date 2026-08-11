@@ -97,25 +97,49 @@ fn rebuild_successors(cfg: &mut ControlFlowGraph) {
 }
 fn split_into_blocks(statements: &[Statement]) -> Vec<Vec<Statement>> {
     let mut blocks = Vec::new();
-
     let mut current = Vec::new();
 
     for stmt in statements {
-        current.push(stmt.clone());
-
         match stmt {
-            Statement::If { .. }
-            | Statement::Perform { .. }
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                if !current.is_empty() {
+                    blocks.push(std::mem::take(&mut current));
+                }
+
+                // Keep the IF condition as its own branch-control block.
+                blocks.push(vec![Statement::If {
+                    condition: condition.clone(),
+                    then_branch: Vec::new(),
+                    else_branch: None,
+                }]);
+
+                // Flatten the THEN branch.
+                let then_blocks = split_into_blocks(then_branch);
+                blocks.extend(then_blocks);
+
+                // Flatten the ELSE branch.
+                if let Some(else_statements) = else_branch {
+                    let else_blocks = split_into_blocks(else_statements);
+                    blocks.extend(else_blocks);
+                }
+            }
+
+            Statement::Perform { .. }
             | Statement::PerformUntil { .. }
             | Statement::PerformVarying { .. }
             | Statement::Call { .. }
             | Statement::StopRun => {
-                blocks.push(current);
-
-                current = Vec::new();
+                current.push(stmt.clone());
+                blocks.push(std::mem::take(&mut current));
             }
 
-            _ => {}
+            _ => {
+                current.push(stmt.clone());
+            }
         }
     }
 
@@ -293,6 +317,108 @@ fn compute_df_recursive(cfg: &mut ControlFlowGraph, node: usize) {
     }
 }
 
+
+#[cfg(test)]
+mod structured_cfg_tests {
+    use super::*;
+    use crate::ir::{Condition, Literal, Program, Source, Statement};
+
+    #[test]
+    fn test_if_creates_branch_and_join() {
+        let program = Program {
+            statements: vec![
+                Statement::Move {
+                    source: Source::Literal(1),
+                    target: "A".to_string(),
+                },
+
+                Statement::If {
+                    condition: Condition {
+                        left: "A".to_string(),
+                        operator: "=".to_string(),
+                        right: "1".to_string(),
+                    },
+
+                    then_branch: vec![
+                        Statement::Move {
+                            source: Source::Literal(10),
+                            target: "B".to_string(),
+                        },
+                    ],
+
+                    else_branch: Some(vec![
+                        Statement::Move {
+                            source: Source::Literal(20),
+                            target: "B".to_string(),
+                        },
+                    ]),
+                },
+
+                Statement::Display {
+                    value: Literal::String("DONE".to_string()),
+                },
+            ],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+
+        println!("Structured IF CFG:");
+        cfg.print();
+
+        // Expected structure:
+        //
+        // block 0 -> block 1
+        // block 1 -> then block + else block
+        // then block -> join block
+        // else block -> join block
+        //
+        // Therefore we need at least 5 blocks.
+
+        assert!(
+            cfg.blocks.len() >= 5,
+            "expected at least 5 blocks for IF/ELSE CFG, got {}",
+            cfg.blocks.len()
+        );
+
+        let branch_block = &cfg.blocks[1];
+
+        assert_eq!(
+            branch_block.successors.len(),
+            2,
+            "IF block should have two successors"
+        );
+
+        let then_block = branch_block.successors[0];
+        let else_block = branch_block.successors[1];
+
+        assert_ne!(
+            then_block,
+            else_block,
+            "then and else branches must be different blocks"
+        );
+
+        let then_successors = &cfg.blocks[then_block].successors;
+        let else_successors = &cfg.blocks[else_block].successors;
+
+        assert_eq!(
+            then_successors.len(),
+            1,
+            "then branch should flow into the join block"
+        );
+
+        assert_eq!(
+            else_successors.len(),
+            1,
+            "else branch should flow into the join block"
+        );
+
+        assert_eq!(
+            then_successors[0],
+            else_successors[0],
+            "then and else branches should converge"
+        );
+    }
+}
 #[cfg(test)]
 mod dominance_tests {
 
@@ -362,4 +488,5 @@ mod dominance_tests {
         assert_eq!(cfg.blocks[2].dominance_frontier, vec![3]);
     }
 }
+
 
