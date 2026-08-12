@@ -77,22 +77,40 @@ impl ControlFlowGraph {
 fn rebuild_successors(cfg: &mut ControlFlowGraph) {
     let block_count = cfg.blocks.len();
 
-    for block_id in 0..block_count {
-        cfg.blocks[block_id].successors.clear();
+    for block in &mut cfg.blocks {
+        block.successors.clear();
+    }
 
-        let is_terminal = cfg.blocks[block_id]
-            .statements
-            .last()
-            .map(|statement| matches!(statement, Statement::StopRun))
-            .unwrap_or(false);
+    let mut block_id = 0;
 
-        if is_terminal {
+    while block_id < block_count {
+        let last_statement = cfg.blocks[block_id].statements.last();
+
+        if matches!(last_statement, Some(Statement::StopRun)) {
+            block_id += 1;
             continue;
         }
 
-        if block_id + 1 < block_count {
+        let is_if = matches!(last_statement, Some(Statement::If { .. }));
+
+        if is_if && block_id + 2 < block_count {
+            let then_block = block_id + 1;
+            let else_block = block_id + 2;
+
+            cfg.blocks[block_id].successors.push(then_block);
+            cfg.blocks[block_id].successors.push(else_block);
+
+            let join_block = block_id + 3;
+
+            if join_block < block_count {
+                cfg.blocks[then_block].successors.push(join_block);
+                cfg.blocks[else_block].successors.push(join_block);
+            }
+        } else if block_id + 1 < block_count {
             cfg.blocks[block_id].successors.push(block_id + 1);
         }
+
+        block_id += 1;
     }
 }
 fn split_into_blocks(statements: &[Statement]) -> Vec<Vec<Statement>> {
@@ -326,6 +344,8 @@ mod structured_cfg_tests {
     #[test]
     fn test_if_creates_branch_and_join() {
         let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
             statements: vec![
                 Statement::Move {
                     source: Source::Literal(1),
@@ -488,5 +508,7 @@ mod dominance_tests {
         assert_eq!(cfg.blocks[2].dominance_frontier, vec![3]);
     }
 }
+
+
 
 
