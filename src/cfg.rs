@@ -96,23 +96,32 @@ fn rebuild_successors(cfg: &mut ControlFlowGraph) {
         if is_if && block_id + 2 < block_count {
             let then_block = block_id + 1;
             let else_block = block_id + 2;
+            let join_block = block_id + 3;
 
+            // IF condition branches to THEN and ELSE.
             cfg.blocks[block_id].successors.push(then_block);
             cfg.blocks[block_id].successors.push(else_block);
 
-            let join_block = block_id + 3;
-
+            // Both branches converge at the join block.
             if join_block < block_count {
                 cfg.blocks[then_block].successors.push(join_block);
                 cfg.blocks[else_block].successors.push(join_block);
             }
-        } else if block_id + 1 < block_count {
+
+            // Skip the THEN and ELSE blocks.
+            block_id += 3;
+            continue;
+        }
+
+        // Ordinary sequential fall-through.
+        if block_id + 1 < block_count {
             cfg.blocks[block_id].successors.push(block_id + 1);
         }
 
         block_id += 1;
     }
 }
+
 fn split_into_blocks(statements: &[Statement]) -> Vec<Vec<Statement>> {
     let mut blocks = Vec::new();
     let mut current = Vec::new();
