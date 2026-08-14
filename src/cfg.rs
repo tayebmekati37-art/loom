@@ -54,6 +54,10 @@ impl ControlFlowGraph {
             cfg.blocks[i].idom = idom[i];
         }
 
+        // Build derived dominance information after idoms are known.
+        build_dominator_tree(&mut cfg);
+        compute_dominance_frontier(&mut cfg);
+
         cfg
     }
 
@@ -307,33 +311,60 @@ pub fn compute_dominance_frontier(cfg: &mut ControlFlowGraph) {
         return;
     }
 
-    let count = cfg.blocks.len();
+    // First build the dominator tree from the already-computed idoms.
+    build_dominator_tree(cfg);
 
-    for block in 0..count {
-        let predecessors = predecessors(cfg, block);
+    // Standard Cytron-style dominance frontier computation:
+    //
+    // DF_local(B):
+    //   successors S of B where idom(S) != B
+    //
+    // DF_up(B):
+    //   dominance frontiers of B's dominator-tree children,
+    //   excluding nodes strictly dominated by B.
+    //
+    // This prevents ancestors such as the entry block from incorrectly
+    // receiving a join point in their dominance frontier.
 
-        // A block with two or more predecessors is a join point.
-        if predecessors.len() >= 2 {
-            for predecessor in predecessors {
-                let mut runner = predecessor;
+    fn compute_df(cfg: &mut ControlFlowGraph, node: usize) {
+        let children = cfg.blocks[node].dom_children.clone();
 
-                while runner != block {
-                    if !cfg.blocks[runner].dominance_frontier.contains(&block) {
-                        cfg.blocks[runner].dominance_frontier.push(block);
-                    }
+        // Local contribution.
+        let successors = cfg.blocks[node].successors.clone();
 
-                    match cfg.blocks[runner].idom {
-                        Some(parent) => runner = parent,
-                        None => break,
-                    }
+        for successor in successors {
+            if cfg.blocks[successor].idom != Some(node)
+                && !cfg.blocks[node]
+                    .dominance_frontier
+                    .contains(&successor)
+            {
+                cfg.blocks[node].dominance_frontier.push(successor);
+            }
+        }
+
+        // Up contribution from dominator-tree children.
+        for child in children {
+            compute_df(cfg, child);
+
+            let child_frontier = cfg.blocks[child].dominance_frontier.clone();
+
+            for frontier_block in child_frontier {
+                if cfg.blocks[frontier_block].idom != Some(node)
+                    && !cfg.blocks[node]
+                        .dominance_frontier
+                        .contains(&frontier_block)
+                {
+                    cfg.blocks[node].dominance_frontier.push(frontier_block);
                 }
             }
         }
+
+        cfg.blocks[node]
+            .dominance_frontier
+            .sort_unstable();
     }
 
-    for block in &mut cfg.blocks {
-        block.dominance_frontier.sort_unstable();
-    }
+    compute_df(cfg, 0);
 }
 
 fn compute_df_recursive(cfg: &mut ControlFlowGraph, node: usize) {
@@ -517,7 +548,3 @@ mod dominance_tests {
         assert_eq!(cfg.blocks[2].dominance_frontier, vec![3]);
     }
 }
-
-
-
-
