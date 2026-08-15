@@ -413,3 +413,97 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
 
     candidates
 }
+ 
+#[cfg(test)]
+mod phi_candidate_tests {
+    use super::*;
+    use crate::cfg::ControlFlowGraph;
+    use crate::ir::{Condition, Program, Source, Statement};
+
+    #[test]
+    fn test_phi_candidate_for_nested_branch_definitions() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![
+                Statement::If {
+                    condition: Condition {
+                        left: "A".to_string(),
+                        operator: "=".to_string(),
+                        right: "1".to_string(),
+                    },
+
+                    then_branch: vec![
+                        Statement::Move {
+                            source: Source::Literal(10),
+                            target: "X".to_string(),
+                        },
+
+                        Statement::If {
+                            condition: Condition {
+                                left: "B".to_string(),
+                                operator: "=".to_string(),
+                                right: "1".to_string(),
+                            },
+
+                            then_branch: vec![
+                                Statement::Move {
+                                    source: Source::Literal(20),
+                                    target: "X".to_string(),
+                                },
+                            ],
+
+                            else_branch: Some(vec![
+                                Statement::Move {
+                                    source: Source::Literal(30),
+                                    target: "X".to_string(),
+                                },
+                            ]),
+                        },
+                    ],
+
+                    else_branch: Some(vec![
+                        Statement::Move {
+                            source: Source::Literal(40),
+                            target: "X".to_string(),
+                        },
+                    ]),
+                },
+
+                Statement::Move {
+                    source: Source::Variable("X".to_string()),
+                    target: "Y".to_string(),
+                },
+            ],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+
+        println!("");
+        println!("=== Nested Phi Candidate Test CFG ===");
+        cfg.print();
+
+        let candidates = find_phi_candidates(&program, &cfg);
+
+        println!("");
+        println!("=== Phi Candidates ===");
+
+        for candidate in &candidates {
+            println!(
+                "variable={} block={}",
+                candidate.variable,
+                candidate.block
+            );
+        }
+
+        let x_candidates: Vec<&PhiCandidate> = candidates
+            .iter()
+            .filter(|candidate| candidate.variable == "X")
+            .collect();
+
+        assert!(
+            !x_candidates.is_empty(),
+            "expected at least one phi candidate for X"
+        );
+    }
+}
