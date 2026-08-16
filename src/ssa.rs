@@ -156,71 +156,168 @@ pub struct UseDefChains {
 pub fn build_use_def_chains(program: &Program) -> UseDefChains {
     let mut chains = UseDefChains::default();
 
-    for (index, stmt) in program.statements.iter().enumerate() {
+    collect_use_def_chains(&program.statements, &mut chains, &mut 0);
+
+    chains
+}
+
+fn collect_use_def_chains(statements: &[Statement], chains: &mut UseDefChains, index: &mut usize) {
+    for stmt in statements {
+        let current_index = *index;
+        *index += 1;
+
         match stmt {
             Statement::Move { source, target } => {
-                chains.defs.entry(target.clone()).or_default().push(index);
+                chains
+                    .defs
+                    .entry(target.clone())
+                    .or_default()
+                    .push(current_index);
 
                 if let Source::Variable(name) = source {
-                    chains.uses.entry(name.clone()).or_default().push(index);
+                    chains
+                        .uses
+                        .entry(name.clone())
+                        .or_default()
+                        .push(current_index);
                 }
             }
 
             Statement::Compute { target, expr } => {
-                chains.defs.entry(target.clone()).or_default().push(index);
+                chains
+                    .defs
+                    .entry(target.clone())
+                    .or_default()
+                    .push(current_index);
 
-                collect_expression_uses(expr, index, &mut chains);
+                collect_expression_uses(expr, current_index, chains);
             }
 
-            Statement::If { condition, .. } => {
-                collect_condition_uses(condition, index, &mut chains);
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                collect_condition_uses(condition, current_index, chains);
+
+                collect_use_def_chains(then_branch, chains, index);
+
+                if let Some(else_branch) = else_branch {
+                    collect_use_def_chains(else_branch, chains, index);
+                }
             }
 
-            Statement::PerformUntil { condition, .. } => {
-                collect_condition_uses(condition, index, &mut chains);
+            Statement::Perform { body, .. } => {
+                collect_use_def_chains(body, chains, index);
             }
 
-            Statement::PerformVarying { until, .. } => {
-                collect_condition_uses(until, index, &mut chains);
+            Statement::PerformUntil { condition, body } => {
+                collect_condition_uses(condition, current_index, chains);
+                collect_use_def_chains(body, chains, index);
+            }
+
+            Statement::PerformVarying {
+                variable,
+                from,
+                by,
+                until,
+                body,
+            } => {
+                chains
+                    .defs
+                    .entry(variable.clone())
+                    .or_default()
+                    .push(current_index);
+
+                collect_expression_uses(from, current_index, chains);
+                collect_expression_uses(by, current_index, chains);
+                collect_condition_uses(until, current_index, chains);
+
+                collect_use_def_chains(body, chains, index);
             }
 
             Statement::Call { using_args, .. } => {
                 for name in using_args {
-                    chains.uses.entry(name.clone()).or_default().push(index);
+                    chains
+                        .uses
+                        .entry(name.clone())
+                        .or_default()
+                        .push(current_index);
                 }
             }
 
             Statement::String { sources, into } => {
                 for name in sources {
-                    chains.uses.entry(name.clone()).or_default().push(index);
+                    chains
+                        .uses
+                        .entry(name.clone())
+                        .or_default()
+                        .push(current_index);
                 }
 
-                chains.defs.entry(into.clone()).or_default().push(index);
+                chains
+                    .defs
+                    .entry(into.clone())
+                    .or_default()
+                    .push(current_index);
             }
 
             Statement::Unstring { source, into } => {
-                chains.uses.entry(source.clone()).or_default().push(index);
+                chains
+                    .uses
+                    .entry(source.clone())
+                    .or_default()
+                    .push(current_index);
 
                 for name in into {
-                    chains.defs.entry(name.clone()).or_default().push(index);
+                    chains
+                        .defs
+                        .entry(name.clone())
+                        .or_default()
+                        .push(current_index);
                 }
             }
 
             Statement::Subtract { value, target }
             | Statement::Multiply { value, target }
             | Statement::Divide { value, target } => {
-                chains.uses.entry(value.clone()).or_default().push(index);
+                chains
+                    .uses
+                    .entry(value.clone())
+                    .or_default()
+                    .push(current_index);
 
-                chains.defs.entry(target.clone()).or_default().push(index);
+                chains
+                    .defs
+                    .entry(target.clone())
+                    .or_default()
+                    .push(current_index);
+            }
+
+            Statement::For {
+                variable,
+                start,
+                step,
+                until,
+                body,
+            } => {
+                chains
+                    .defs
+                    .entry(variable.clone())
+                    .or_default()
+                    .push(current_index);
+
+                collect_expression_uses(start, current_index, chains);
+                collect_expression_uses(step, current_index, chains);
+                collect_condition_uses(until, current_index, chains);
+
+                collect_use_def_chains(body, chains, index);
             }
 
             _ => {}
         }
     }
-
-    chains
 }
-
 fn collect_condition_uses(condition: &Condition, index: usize, chains: &mut UseDefChains) {
     if !condition.left.is_empty() {
         chains
@@ -413,7 +510,7 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
 
     candidates
 }
- 
+
 #[cfg(test)]
 mod phi_candidate_tests {
     use super::*;
@@ -438,7 +535,6 @@ mod phi_candidate_tests {
                             source: Source::Literal(10),
                             target: "X".to_string(),
                         },
-
                         Statement::If {
                             condition: Condition {
                                 left: "B".to_string(),
@@ -446,30 +542,23 @@ mod phi_candidate_tests {
                                 right: "1".to_string(),
                             },
 
-                            then_branch: vec![
-                                Statement::Move {
-                                    source: Source::Literal(20),
-                                    target: "X".to_string(),
-                                },
-                            ],
+                            then_branch: vec![Statement::Move {
+                                source: Source::Literal(20),
+                                target: "X".to_string(),
+                            }],
 
-                            else_branch: Some(vec![
-                                Statement::Move {
-                                    source: Source::Literal(30),
-                                    target: "X".to_string(),
-                                },
-                            ]),
+                            else_branch: Some(vec![Statement::Move {
+                                source: Source::Literal(30),
+                                target: "X".to_string(),
+                            }]),
                         },
                     ],
 
-                    else_branch: Some(vec![
-                        Statement::Move {
-                            source: Source::Literal(40),
-                            target: "X".to_string(),
-                        },
-                    ]),
+                    else_branch: Some(vec![Statement::Move {
+                        source: Source::Literal(40),
+                        target: "X".to_string(),
+                    }]),
                 },
-
                 Statement::Move {
                     source: Source::Variable("X".to_string()),
                     target: "Y".to_string(),
@@ -489,11 +578,7 @@ mod phi_candidate_tests {
         println!("=== Phi Candidates ===");
 
         for candidate in &candidates {
-            println!(
-                "variable={} block={}",
-                candidate.variable,
-                candidate.block
-            );
+            println!("variable={} block={}", candidate.variable, candidate.block);
         }
 
         let x_candidates: Vec<&PhiCandidate> = candidates
@@ -505,5 +590,53 @@ mod phi_candidate_tests {
             !x_candidates.is_empty(),
             "expected at least one phi candidate for X"
         );
+    }
+
+    #[test]
+    fn test_use_def_chains_include_nested_definitions() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![Statement::If {
+                condition: Condition {
+                    left: "A".to_string(),
+                    operator: "=".to_string(),
+                    right: "1".to_string(),
+                },
+
+                then_branch: vec![
+                    Statement::Move {
+                        source: Source::Literal(10),
+                        target: "X".to_string(),
+                    },
+                    Statement::If {
+                        condition: Condition {
+                            left: "B".to_string(),
+                            operator: "=".to_string(),
+                            right: "1".to_string(),
+                        },
+
+                        then_branch: vec![Statement::Move {
+                            source: Source::Literal(20),
+                            target: "X".to_string(),
+                        }],
+
+                        else_branch: Some(vec![Statement::Move {
+                            source: Source::Literal(30),
+                            target: "X".to_string(),
+                        }]),
+                    },
+                ],
+
+                else_branch: Some(vec![Statement::Move {
+                    source: Source::Literal(40),
+                    target: "X".to_string(),
+                }]),
+            }],
+        };
+
+        let chains = build_use_def_chains(&program);
+
+        assert_eq!(chains.defs.get("X"), Some(&vec![1, 3, 4, 5]));
     }
 }
