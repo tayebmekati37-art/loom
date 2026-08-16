@@ -450,25 +450,25 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
 
     let chains = build_use_def_chains(program);
 
-    // Build a mapping from statement index to CFG block.
+    // Map every statement index from the recursive SSA traversal
+    // to the CFG block that contains that statement.
     let mut statement_to_block = HashMap::new();
 
-    for (block_id, block) in cfg.blocks.iter().enumerate() {
-        for statement in &block.statements {
-            let _ = statement;
+    fn map_statements_to_blocks(
+        blocks: &[crate::cfg::BasicBlock],
+        statement_to_block: &mut HashMap<usize, usize>,
+    ) {
+        let mut statement_index = 0usize;
+
+        for (block_id, block) in blocks.iter().enumerate() {
+            for _ in &block.statements {
+                statement_to_block.insert(statement_index, block_id);
+                statement_index += 1;
+            }
         }
     }
 
-    // The CFG blocks contain cloned statements, so match definitions
-    // against the program statement sequence to recover block ownership.
-    let mut statement_index = 0usize;
-
-    for (block_id, block) in cfg.blocks.iter().enumerate() {
-        for _statement in &block.statements {
-            statement_to_block.insert(statement_index, block_id);
-            statement_index += 1;
-        }
-    }
+    map_statements_to_blocks(&cfg.blocks, &mut statement_to_block);
 
     for (variable, definitions) in &chains.defs {
         if definitions.len() < 2 {
