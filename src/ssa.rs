@@ -373,6 +373,60 @@ pub fn print_use_def_chains(chains: &UseDefChains) {
     println!("");
 }
 
+pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
+    let candidates = find_phi_candidates(program, cfg);
+
+    if candidates.is_empty() {
+        return program.clone();
+    }
+
+    let mut result = program.clone();
+
+    // Group phi candidates by CFG block.
+    let mut phis_by_block: HashMap<usize, Vec<String>> = HashMap::new();
+
+    for candidate in candidates {
+        phis_by_block
+            .entry(candidate.block)
+            .or_default()
+            .push(candidate.variable);
+    }
+
+    // The current IR program is linear while the CFG owns the
+    // block structure. Insert phi nodes at the beginning of the
+    // corresponding flattened block.
+    //
+    // Keep this deterministic so SSA output remains stable.
+    let mut offset = 0usize;
+
+    for block_id in 0..cfg.blocks.len() {
+        let variables = match phis_by_block.get(&block_id) {
+            Some(vars) => vars,
+            None => {
+                offset += cfg.blocks[block_id].statements.len();
+                continue;
+            }
+        };
+
+        let mut phi_statements = Vec::new();
+
+        let mut sorted_variables = variables.clone();
+        sorted_variables.sort();
+        sorted_variables.dedup();
+
+        for variable in sorted_variables {
+            phi_statements.push(Statement::Phi { variable });
+        }
+
+        result
+            .statements
+            .splice(offset..offset, phi_statements.iter().cloned());
+
+        offset += cfg.blocks[block_id].statements.len() + phi_statements.len();
+    }
+
+    result
+}
 #[cfg(test)]
 mod use_def_tests {
 
@@ -505,6 +559,60 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
     candidates.sort_by(|a, b| a.variable.cmp(&b.variable).then(a.block.cmp(&b.block)));
 
     candidates
+}
+pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
+    let candidates = find_phi_candidates(program, cfg);
+
+    if candidates.is_empty() {
+        return program.clone();
+    }
+
+    let mut result = program.clone();
+
+    // Group phi candidates by CFG block.
+    let mut phis_by_block: HashMap<usize, Vec<String>> = HashMap::new();
+
+    for candidate in candidates {
+        phis_by_block
+            .entry(candidate.block)
+            .or_default()
+            .push(candidate.variable);
+    }
+
+    // The current IR program is linear while the CFG owns the
+    // block structure. Insert phi nodes at the beginning of the
+    // corresponding flattened block.
+    //
+    // Keep this deterministic so SSA output remains stable.
+    let mut offset = 0usize;
+
+    for block_id in 0..cfg.blocks.len() {
+        let variables = match phis_by_block.get(&block_id) {
+            Some(vars) => vars,
+            None => {
+                offset += cfg.blocks[block_id].statements.len();
+                continue;
+            }
+        };
+
+        let mut phi_statements = Vec::new();
+
+        let mut sorted_variables = variables.clone();
+        sorted_variables.sort();
+        sorted_variables.dedup();
+
+        for variable in sorted_variables {
+            phi_statements.push(Statement::Phi { variable });
+        }
+
+        result
+            .statements
+            .splice(offset..offset, phi_statements.iter().cloned());
+
+        offset += cfg.blocks[block_id].statements.len() + phi_statements.len();
+    }
+
+    result
 }
 #[cfg(test)]
 mod phi_candidate_tests {
