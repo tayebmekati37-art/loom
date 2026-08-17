@@ -46,6 +46,10 @@ pub enum Source {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
+    Phi {
+        variable: String,
+    },
+
     Replace {
         from: String,
         to: String,

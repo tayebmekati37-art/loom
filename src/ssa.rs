@@ -373,6 +373,60 @@ pub fn print_use_def_chains(chains: &UseDefChains) {
     println!("");
 }
 
+pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
+    let candidates = find_phi_candidates(program, cfg);
+
+    if candidates.is_empty() {
+        return program.clone();
+    }
+
+    let mut result = program.clone();
+
+    // Group phi candidates by CFG block.
+    let mut phis_by_block: HashMap<usize, Vec<String>> = HashMap::new();
+
+    for candidate in candidates {
+        phis_by_block
+            .entry(candidate.block)
+            .or_default()
+            .push(candidate.variable);
+    }
+
+    // The current IR program is linear while the CFG owns the
+    // block structure. Insert phi nodes at the beginning of the
+    // corresponding flattened block.
+    //
+    // Keep this deterministic so SSA output remains stable.
+    let mut offset = 0usize;
+
+    for block_id in 0..cfg.blocks.len() {
+        let variables = match phis_by_block.get(&block_id) {
+            Some(vars) => vars,
+            None => {
+                offset += cfg.blocks[block_id].statements.len();
+                continue;
+            }
+        };
+
+        let mut phi_statements = Vec::new();
+
+        let mut sorted_variables = variables.clone();
+        sorted_variables.sort();
+        sorted_variables.dedup();
+
+        for variable in sorted_variables {
+            phi_statements.push(Statement::Phi { variable });
+        }
+
+        result
+            .statements
+            .splice(offset..offset, phi_statements.iter().cloned());
+
+        offset += cfg.blocks[block_id].statements.len() + phi_statements.len();
+    }
+
+    result
+}
 #[cfg(test)]
 mod use_def_tests {
 
@@ -446,21 +500,12 @@ pub struct PhiCandidate {
 }
 
 pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<PhiCandidate> {
+    let chains = build_use_def_chains(program);
     let mut candidates = Vec::new();
 
-    let chains = build_use_def_chains(program);
-
-    // Build a mapping from statement index to CFG block.
+    // Map definition statement indices to CFG blocks.
     let mut statement_to_block = HashMap::new();
 
-    for (block_id, block) in cfg.blocks.iter().enumerate() {
-        for statement in &block.statements {
-            let _ = statement;
-        }
-    }
-
-    // The CFG blocks contain cloned statements, so match definitions
-    // against the program statement sequence to recover block ownership.
     let mut statement_index = 0usize;
 
     for (block_id, block) in cfg.blocks.iter().enumerate() {
@@ -475,32 +520,37 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
             continue;
         }
 
-        let mut definition_blocks = Vec::new();
+        let mut worklist = Vec::new();
+        let mut visited = HashSet::new();
 
-        for definition_index in definitions {
-            if let Some(block_id) = statement_to_block.get(definition_index) {
-                definition_blocks.push(*block_id);
+        // Initial definition blocks.
+        for definition in definitions {
+            if let Some(&block) = statement_to_block.get(definition) {
+                if visited.insert(block) {
+                    worklist.push(block);
+                }
             }
         }
 
-        definition_blocks.sort_unstable();
-        definition_blocks.dedup();
-
-        if definition_blocks.len() < 2 {
-            continue;
-        }
-
-        for definition_block in definition_blocks {
-            for frontier_block in &cfg.blocks[definition_block].dominance_frontier {
+        // Iterated dominance frontier.
+        while let Some(definition_block) = worklist.pop() {
+            for &frontier_block in &cfg.blocks[definition_block].dominance_frontier {
                 let candidate = PhiCandidate {
                     variable: variable.clone(),
-                    block: *frontier_block,
+                    block: frontier_block,
                 };
 
                 if !candidates.iter().any(|existing: &PhiCandidate| {
                     existing.variable == candidate.variable && existing.block == candidate.block
                 }) {
                     candidates.push(candidate);
+                }
+
+                // A newly discovered frontier block can itself
+                // introduce another phi placement through its
+                // dominance frontier.
+                if visited.insert(frontier_block) {
+                    worklist.push(frontier_block);
                 }
             }
         }
@@ -510,7 +560,60 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
 
     candidates
 }
+pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
+    let candidates = find_phi_candidates(program, cfg);
 
+    if candidates.is_empty() {
+        return program.clone();
+    }
+
+    let mut result = program.clone();
+
+    // Group phi candidates by CFG block.
+    let mut phis_by_block: HashMap<usize, Vec<String>> = HashMap::new();
+
+    for candidate in candidates {
+        phis_by_block
+            .entry(candidate.block)
+            .or_default()
+            .push(candidate.variable);
+    }
+
+    // The current IR program is linear while the CFG owns the
+    // block structure. Insert phi nodes at the beginning of the
+    // corresponding flattened block.
+    //
+    // Keep this deterministic so SSA output remains stable.
+    let mut offset = 0usize;
+
+    for block_id in 0..cfg.blocks.len() {
+        let variables = match phis_by_block.get(&block_id) {
+            Some(vars) => vars,
+            None => {
+                offset += cfg.blocks[block_id].statements.len();
+                continue;
+            }
+        };
+
+        let mut phi_statements = Vec::new();
+
+        let mut sorted_variables = variables.clone();
+        sorted_variables.sort();
+        sorted_variables.dedup();
+
+        for variable in sorted_variables {
+            phi_statements.push(Statement::Phi { variable });
+        }
+
+        result
+            .statements
+            .splice(offset..offset, phi_statements.iter().cloned());
+
+        offset += cfg.blocks[block_id].statements.len() + phi_statements.len();
+    }
+
+    result
+}
 #[cfg(test)]
 mod phi_candidate_tests {
     use super::*;
