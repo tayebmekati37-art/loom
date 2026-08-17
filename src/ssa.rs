@@ -446,61 +446,57 @@ pub struct PhiCandidate {
 }
 
 pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<PhiCandidate> {
+    let chains = build_use_def_chains(program);
     let mut candidates = Vec::new();
 
-    let chains = build_use_def_chains(program);
-
-    // Map every statement index from the recursive SSA traversal
-    // to the CFG block that contains that statement.
+    // Map definition statement indices to CFG blocks.
     let mut statement_to_block = HashMap::new();
 
-    fn map_statements_to_blocks(
-        blocks: &[crate::cfg::BasicBlock],
-        statement_to_block: &mut HashMap<usize, usize>,
-    ) {
-        let mut statement_index = 0usize;
+    let mut statement_index = 0usize;
 
-        for (block_id, block) in blocks.iter().enumerate() {
-            for _ in &block.statements {
-                statement_to_block.insert(statement_index, block_id);
-                statement_index += 1;
-            }
+    for (block_id, block) in cfg.blocks.iter().enumerate() {
+        for _statement in &block.statements {
+            statement_to_block.insert(statement_index, block_id);
+            statement_index += 1;
         }
     }
-
-    map_statements_to_blocks(&cfg.blocks, &mut statement_to_block);
 
     for (variable, definitions) in &chains.defs {
         if definitions.len() < 2 {
             continue;
         }
 
-        let mut definition_blocks = Vec::new();
+        let mut worklist = Vec::new();
+        let mut visited = HashSet::new();
 
-        for definition_index in definitions {
-            if let Some(block_id) = statement_to_block.get(definition_index) {
-                definition_blocks.push(*block_id);
+        // Initial definition blocks.
+        for definition in definitions {
+            if let Some(&block) = statement_to_block.get(definition) {
+                if visited.insert(block) {
+                    worklist.push(block);
+                }
             }
         }
 
-        definition_blocks.sort_unstable();
-        definition_blocks.dedup();
-
-        if definition_blocks.len() < 2 {
-            continue;
-        }
-
-        for definition_block in definition_blocks {
-            for frontier_block in &cfg.blocks[definition_block].dominance_frontier {
+        // Iterated dominance frontier.
+        while let Some(definition_block) = worklist.pop() {
+            for &frontier_block in &cfg.blocks[definition_block].dominance_frontier {
                 let candidate = PhiCandidate {
                     variable: variable.clone(),
-                    block: *frontier_block,
+                    block: frontier_block,
                 };
 
                 if !candidates.iter().any(|existing: &PhiCandidate| {
                     existing.variable == candidate.variable && existing.block == candidate.block
                 }) {
                     candidates.push(candidate);
+                }
+
+                // A newly discovered frontier block can itself
+                // introduce another phi placement through its
+                // dominance frontier.
+                if visited.insert(frontier_block) {
+                    worklist.push(frontier_block);
                 }
             }
         }
@@ -510,7 +506,6 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
 
     candidates
 }
-
 #[cfg(test)]
 mod phi_candidate_tests {
     use super::*;
