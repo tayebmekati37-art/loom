@@ -1,4 +1,4 @@
-﻿use crate::ir::*;
+use crate::ir::*;
 use std::fmt::Write;
 
 pub fn translate_program(program: &Program) -> String {
@@ -123,4 +123,3 @@ pub fn translate(function: &Function) -> String {
 pub fn translate_function(function: &Function) -> String {
     translate(function)
 }
-
