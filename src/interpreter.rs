@@ -94,6 +94,11 @@ impl Interpreter {
 
     fn execute_statement(&mut self, stmt: &crate::ir::Statement) {
         match stmt {
+            crate::ir::Statement::Phi { .. } => {
+                // Phi nodes are SSA metadata and are resolved before
+                // runtime interpretation.
+            }
+
             crate::ir::Statement::NoOp => {}
 
             crate::ir::Statement::Add { target, value } => {

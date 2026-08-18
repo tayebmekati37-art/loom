@@ -1,6 +1,6 @@
 use crate::cfg::ControlFlowGraph;
 use crate::ir::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Default)]
 pub struct VersionCounter {
@@ -560,60 +560,6 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
 
     candidates
 }
-pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
-    let candidates = find_phi_candidates(program, cfg);
-
-    if candidates.is_empty() {
-        return program.clone();
-    }
-
-    let mut result = program.clone();
-
-    // Group phi candidates by CFG block.
-    let mut phis_by_block: HashMap<usize, Vec<String>> = HashMap::new();
-
-    for candidate in candidates {
-        phis_by_block
-            .entry(candidate.block)
-            .or_default()
-            .push(candidate.variable);
-    }
-
-    // The current IR program is linear while the CFG owns the
-    // block structure. Insert phi nodes at the beginning of the
-    // corresponding flattened block.
-    //
-    // Keep this deterministic so SSA output remains stable.
-    let mut offset = 0usize;
-
-    for block_id in 0..cfg.blocks.len() {
-        let variables = match phis_by_block.get(&block_id) {
-            Some(vars) => vars,
-            None => {
-                offset += cfg.blocks[block_id].statements.len();
-                continue;
-            }
-        };
-
-        let mut phi_statements = Vec::new();
-
-        let mut sorted_variables = variables.clone();
-        sorted_variables.sort();
-        sorted_variables.dedup();
-
-        for variable in sorted_variables {
-            phi_statements.push(Statement::Phi { variable });
-        }
-
-        result
-            .statements
-            .splice(offset..offset, phi_statements.iter().cloned());
-
-        offset += cfg.blocks[block_id].statements.len() + phi_statements.len();
-    }
-
-    result
-}
 #[cfg(test)]
 mod phi_candidate_tests {
     use super::*;
@@ -741,5 +687,55 @@ mod phi_candidate_tests {
         let chains = build_use_def_chains(&program);
 
         assert_eq!(chains.defs.get("X"), Some(&vec![1, 3, 4, 5]));
+    }
+
+    #[test]
+    fn test_insert_phi_nodes_for_branch_merge() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![
+                Statement::If {
+                    condition: Condition {
+                        left: "A".to_string(),
+                        operator: "=".to_string(),
+                        right: "1".to_string(),
+                    },
+                    then_branch: vec![Statement::Move {
+                        source: Source::Literal(10),
+                        target: "X".to_string(),
+                    }],
+                    else_branch: Some(vec![Statement::Move {
+                        source: Source::Literal(20),
+                        target: "X".to_string(),
+                    }]),
+                },
+                Statement::Move {
+                    source: Source::Variable("X".to_string()),
+                    target: "Y".to_string(),
+                },
+            ],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+
+        let result = insert_phi_nodes(&program, &cfg);
+
+        let phi_count = result
+            .statements
+            .iter()
+            .filter(|stmt| matches!(stmt, Statement::Phi { .. }))
+            .count();
+
+        assert_eq!(
+            phi_count, 1,
+            "expected exactly one Phi node for X at the branch merge"
+        );
+
+        println!("=== Phi insertion result ===");
+
+        for (index, stmt) in result.statements.iter().enumerate() {
+            println!("{}: {:?}", index, stmt);
+        }
     }
 }
