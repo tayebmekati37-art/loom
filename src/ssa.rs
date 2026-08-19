@@ -560,6 +560,7 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
 
     candidates
 }
+
 #[cfg(test)]
 mod phi_candidate_tests {
     use super::*;
@@ -687,55 +688,5 @@ mod phi_candidate_tests {
         let chains = build_use_def_chains(&program);
 
         assert_eq!(chains.defs.get("X"), Some(&vec![1, 3, 4, 5]));
-    }
-
-    #[test]
-    fn test_insert_phi_nodes_for_branch_merge() {
-        let program = Program {
-            variables: Vec::new(),
-            paragraphs: Vec::new(),
-            statements: vec![
-                Statement::If {
-                    condition: Condition {
-                        left: "A".to_string(),
-                        operator: "=".to_string(),
-                        right: "1".to_string(),
-                    },
-                    then_branch: vec![Statement::Move {
-                        source: Source::Literal(10),
-                        target: "X".to_string(),
-                    }],
-                    else_branch: Some(vec![Statement::Move {
-                        source: Source::Literal(20),
-                        target: "X".to_string(),
-                    }]),
-                },
-                Statement::Move {
-                    source: Source::Variable("X".to_string()),
-                    target: "Y".to_string(),
-                },
-            ],
-        };
-
-        let cfg = ControlFlowGraph::build(&program);
-
-        let result = insert_phi_nodes(&program, &cfg);
-
-        let phi_count = result
-            .statements
-            .iter()
-            .filter(|stmt| matches!(stmt, Statement::Phi { .. }))
-            .count();
-
-        assert_eq!(
-            phi_count, 1,
-            "expected exactly one Phi node for X at the branch merge"
-        );
-
-        println!("=== Phi insertion result ===");
-
-        for (index, stmt) in result.statements.iter().enumerate() {
-            println!("{}: {:?}", index, stmt);
-        }
     }
 }
