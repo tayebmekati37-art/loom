@@ -382,7 +382,7 @@ pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
 
     let mut result = program.clone();
 
-    // Group phi candidates by CFG block.
+    // Group candidates by CFG merge block.
     let mut phis_by_block: HashMap<usize, Vec<String>> = HashMap::new();
 
     for candidate in candidates {
@@ -392,37 +392,73 @@ pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
             .push(candidate.variable);
     }
 
-    // The current IR program is linear while the CFG owns the
-    // block structure. Insert phi nodes at the beginning of the
-    // corresponding flattened block.
+    // The current Program IR preserves structured IF statements,
+    // while the CFG flattens their branches into separate blocks.
     //
-    // Keep this deterministic so SSA output remains stable.
-    let mut offset = 0usize;
+    // Therefore a CFG block number cannot safely be used as a direct
+    // index into Program::statements.
+    //
+    // For a merge block, the correct location in the structured IR
+    // is immediately after the corresponding IF statement and before
+    // the first statement that follows the branch.
+    let mut insertion_points: Vec<(usize, Vec<String>)> = Vec::new();
 
-    for block_id in 0..cfg.blocks.len() {
-        let variables = match phis_by_block.get(&block_id) {
-            Some(vars) => vars,
-            None => {
-                offset += cfg.blocks[block_id].statements.len();
-                continue;
-            }
-        };
+    for (block_id, mut variables) in phis_by_block {
+        variables.sort();
+        variables.dedup();
 
-        let mut phi_statements = Vec::new();
+        let block = &cfg.blocks[block_id];
 
-        let mut sorted_variables = variables.clone();
-        sorted_variables.sort();
-        sorted_variables.dedup();
+        // A merge block has multiple incoming CFG edges.
+        let predecessor_count = cfg
+            .blocks
+            .iter()
+            .filter(|candidate| candidate.successors.contains(&block_id))
+            .count();
 
-        for variable in sorted_variables {
-            phi_statements.push(Statement::Phi { variable });
+        if predecessor_count < 2 {
+            continue;
         }
+
+        // Find the first top-level statement after an IF.
+        //
+        // Example:
+        //
+        //   IF ...
+        //   MOVE X ...
+        //
+        // Phi belongs before MOVE X in the structured representation.
+        let mut position = None;
+
+        for index in 0..program.statements.len() {
+            if matches!(program.statements[index], Statement::If { .. }) {
+                if index + 1 < program.statements.len() {
+                    position = Some(index + 1);
+                    break;
+                }
+
+                position = Some(program.statements.len());
+            }
+        }
+
+        if let Some(position) = position {
+            insertion_points.push((position, variables));
+        }
+    }
+
+    // Deterministic ordering.
+    insertion_points.sort_by_key(|(position, _)| *position);
+
+    // Insert backwards so earlier insertion positions remain valid.
+    for (position, variables) in insertion_points.into_iter().rev() {
+        let phi_statements: Vec<Statement> = variables
+            .into_iter()
+            .map(|variable| Statement::Phi { variable })
+            .collect();
 
         result
             .statements
-            .splice(offset..offset, phi_statements.iter().cloned());
-
-        offset += cfg.blocks[block_id].statements.len() + phi_statements.len();
+            .splice(position..position, phi_statements);
     }
 
     result
@@ -688,5 +724,92 @@ mod phi_candidate_tests {
         let chains = build_use_def_chains(&program);
 
         assert_eq!(chains.defs.get("X"), Some(&vec![1, 3, 4, 5]));
+    }
+}
+
+#[cfg(test)]
+mod phi_regression_tests_v2 {
+    use super::*;
+    use crate::cfg::ControlFlowGraph;
+    use crate::ir::{Condition, Program, Source, Statement};
+
+    #[test]
+    fn test_phi_insertion_is_deterministic_for_multiple_variables() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![
+                Statement::If {
+                    condition: Condition {
+                        left: "A".to_string(),
+                        operator: "=".to_string(),
+                        right: "1".to_string(),
+                    },
+                    then_branch: vec![
+                        Statement::Move {
+                            source: Source::Literal(10),
+                            target: "X".to_string(),
+                        },
+                        Statement::Move {
+                            source: Source::Literal(30),
+                            target: "Y".to_string(),
+                        },
+                    ],
+                    else_branch: Some(vec![
+                        Statement::Move {
+                            source: Source::Literal(20),
+                            target: "X".to_string(),
+                        },
+                        Statement::Move {
+                            source: Source::Literal(40),
+                            target: "Y".to_string(),
+                        },
+                    ]),
+                },
+                Statement::Move {
+                    source: Source::Variable("X".to_string()),
+                    target: "Z".to_string(),
+                },
+                Statement::Move {
+                    source: Source::Variable("Y".to_string()),
+                    target: "W".to_string(),
+                },
+            ],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+
+        let first = insert_phi_nodes(&program, &cfg);
+        let second = insert_phi_nodes(&program, &cfg);
+
+        let first_phis: Vec<String> = first
+            .statements
+            .iter()
+            .filter_map(|stmt| match stmt {
+                Statement::Phi { variable } => Some(variable.clone()),
+                _ => None,
+            })
+            .collect();
+
+        let second_phis: Vec<String> = second
+            .statements
+            .iter()
+            .filter_map(|stmt| match stmt {
+                Statement::Phi { variable } => Some(variable.clone()),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(
+            first_phis,
+            vec!["X".to_string(), "Y".to_string()],
+            "expected deterministic Phi nodes for X and Y"
+        );
+
+        assert_eq!(
+            first_phis,
+            second_phis,
+            "Phi insertion must be deterministic"
+        );
     }
 }
