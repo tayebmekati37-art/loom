@@ -334,9 +334,7 @@ pub fn compute_dominance_frontier(cfg: &mut ControlFlowGraph) {
 
         for successor in successors {
             if cfg.blocks[successor].idom != Some(node)
-                && !cfg.blocks[node]
-                    .dominance_frontier
-                    .contains(&successor)
+                && !cfg.blocks[node].dominance_frontier.contains(&successor)
             {
                 cfg.blocks[node].dominance_frontier.push(successor);
             }
@@ -359,9 +357,7 @@ pub fn compute_dominance_frontier(cfg: &mut ControlFlowGraph) {
             }
         }
 
-        cfg.blocks[node]
-            .dominance_frontier
-            .sort_unstable();
+        cfg.blocks[node].dominance_frontier.sort_unstable();
     }
 
     compute_df(cfg, 0);
@@ -374,7 +370,6 @@ fn compute_df_recursive(cfg: &mut ControlFlowGraph, node: usize) {
         compute_df_recursive(cfg, child);
     }
 }
-
 
 #[cfg(test)]
 mod structured_cfg_tests {
@@ -391,7 +386,6 @@ mod structured_cfg_tests {
                     source: Source::Literal(1),
                     target: "A".to_string(),
                 },
-
                 Statement::If {
                     condition: Condition {
                         left: "A".to_string(),
@@ -399,21 +393,16 @@ mod structured_cfg_tests {
                         right: "1".to_string(),
                     },
 
-                    then_branch: vec![
-                        Statement::Move {
-                            source: Source::Literal(10),
-                            target: "B".to_string(),
-                        },
-                    ],
+                    then_branch: vec![Statement::Move {
+                        source: Source::Literal(10),
+                        target: "B".to_string(),
+                    }],
 
-                    else_branch: Some(vec![
-                        Statement::Move {
-                            source: Source::Literal(20),
-                            target: "B".to_string(),
-                        },
-                    ]),
+                    else_branch: Some(vec![Statement::Move {
+                        source: Source::Literal(20),
+                        target: "B".to_string(),
+                    }]),
                 },
-
                 Statement::Display {
                     value: Literal::String("DONE".to_string()),
                 },
@@ -452,8 +441,7 @@ mod structured_cfg_tests {
         let else_block = branch_block.successors[1];
 
         assert_ne!(
-            then_block,
-            else_block,
+            then_block, else_block,
             "then and else branches must be different blocks"
         );
 
@@ -473,8 +461,7 @@ mod structured_cfg_tests {
         );
 
         assert_eq!(
-            then_successors[0],
-            else_successors[0],
+            then_successors[0], else_successors[0],
             "then and else branches should converge"
         );
     }
