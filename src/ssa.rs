@@ -539,15 +539,74 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
     let chains = build_use_def_chains(program);
     let mut candidates = Vec::new();
 
-    // Map definition statement indices to CFG blocks.
-    let mut statement_to_block = HashMap::new();
+    // Map structured Program statement indices to flattened CFG blocks.
+    //
+    // The CFG expands structured IF branches into separate blocks, so
+    // CFG statement positions cannot be used as Program statement
+    // positions directly.
+    let mut statement_to_block: HashMap<usize, usize> = HashMap::new();
 
-    let mut statement_index = 0usize;
+    fn map_branch_statements(
+        statements: &[Statement],
+        cfg_block: usize,
+        program_index: &mut usize,
+        statement_to_block: &mut HashMap<usize, usize>,
+    ) {
+        let _ = statements;
 
-    for (block_id, block) in cfg.blocks.iter().enumerate() {
-        for _statement in &block.statements {
-            statement_to_block.insert(statement_index, block_id);
-            statement_index += 1;
+        for _ in statements {
+            statement_to_block.insert(*program_index, cfg_block);
+            *program_index += 1;
+        }
+    }
+
+    let mut program_index = 0usize;
+    let mut cfg_block = 0usize;
+
+    for statement in &program.statements {
+        match statement {
+            Statement::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                // The IF itself occupies the branch-control CFG block.
+                statement_to_block.insert(program_index, cfg_block);
+
+                program_index += 1;
+                cfg_block += 1;
+
+                // THEN branch occupies the next CFG block.
+                if !then_branch.is_empty() {
+                    map_branch_statements(
+                        then_branch,
+                        cfg_block,
+                        &mut program_index,
+                        &mut statement_to_block,
+                    );
+
+                    cfg_block += 1;
+                }
+
+                // ELSE branch occupies the following CFG block.
+                if let Some(else_branch) = else_branch {
+                    if !else_branch.is_empty() {
+                        map_branch_statements(
+                            else_branch,
+                            cfg_block,
+                            &mut program_index,
+                            &mut statement_to_block,
+                        );
+
+                        cfg_block += 1;
+                    }
+                }
+            }
+
+            _ => {
+                statement_to_block.insert(program_index, cfg_block);
+                program_index += 1;
+            }
         }
     }
 
