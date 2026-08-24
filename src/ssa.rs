@@ -17,10 +17,30 @@ impl VersionCounter {
     }
 }
 
-pub fn convert_to_ssa(_program: &mut Program) {
+pub fn convert_to_ssa(program: &mut Program) {
+    // Build the CFG before mutating the program.
+    let cfg = ControlFlowGraph::build(program);
+
+    // Insert Phi nodes at CFG merge points.
+    let with_phis = insert_phi_nodes(program, &cfg);
+
+    *program = with_phis;
+
+    // Use one version counter for this conversion pass.
     let mut counter = VersionCounter::default();
 
-    println!("SSA placeholder version {}", counter.next_version("TEMP"));
+    // Rename definitions.
+    rename_arithmetic_targets(program, &mut counter);
+
+    // These helpers currently own their counters internally.
+    // They remain here temporarily while the SSA renaming
+    // implementation is being migrated toward CFG/dominator-based
+    // renaming.
+    rename_move_targets(program);
+    rename_compute_targets(program);
+
+    // Rename variable uses to their latest known definition.
+    rename_variable_uses(program);
 }
 
 pub fn rename_variable(name: &str, version: usize) -> String {
@@ -456,9 +476,7 @@ pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
             .map(|variable| Statement::Phi { variable })
             .collect();
 
-        result
-            .statements
-            .splice(position..position, phi_statements);
+        result.statements.splice(position..position, phi_statements);
     }
 
     result
@@ -866,8 +884,7 @@ mod phi_regression_tests_v2 {
         );
 
         assert_eq!(
-            first_phis,
-            second_phis,
+            first_phis, second_phis,
             "Phi insertion must be deterministic"
         );
     }
