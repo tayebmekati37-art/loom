@@ -1,4 +1,4 @@
-use crate::cfg::ControlFlowGraph;
+﻿use crate::cfg::ControlFlowGraph;
 use crate::ir::*;
 use std::collections::{HashMap, HashSet};
 
@@ -19,28 +19,18 @@ impl VersionCounter {
 
 pub fn convert_to_ssa(program: &mut Program) {
     // Build the CFG before mutating the program.
-    let cfg = ControlFlowGraph::build(program);
+    let mut cfg = ControlFlowGraph::build(program);
 
     // Insert Phi nodes at CFG merge points.
     let with_phis = insert_phi_nodes(program, &cfg);
 
     *program = with_phis;
 
-    // Use one version counter for this conversion pass.
-    let mut counter = VersionCounter::default();
-
-    // Rename definitions.
-    rename_arithmetic_targets(program, &mut counter);
-
-    // These helpers currently own their counters internally.
-    // They remain here temporarily while the SSA renaming
-    // implementation is being migrated toward CFG/dominator-based
-    // renaming.
-    rename_move_targets(program);
-    rename_compute_targets(program);
-
-    // Rename variable uses to their latest known definition.
-    rename_variable_uses(program);
+    // The CFG was built from the pre-Phi program. The current
+    // implementation therefore uses the existing CFG structure
+    // only for dominator ordering while matching statements back
+    // into the current sequential IR.
+    rename_dominator_tree(program, &cfg);
 }
 
 pub fn rename_variable(name: &str, version: usize) -> String {
@@ -481,6 +471,324 @@ pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
 
     result
 }
+
+/*
+=== LOOM DOMINATOR RENAMER v4 ===
+
+SSA renaming is performed using the CFG dominator tree.
+
+Important IR detail:
+    Move.source is Source, not Expression.
+
+Phi nodes in the current IR only contain the variable being
+defined; they do not have incoming operands. Therefore this
+phase renames Phi definitions but does not invent Phi operands.
+*/
+
+#[derive(Default)]
+struct SsaRenameState {
+    counters: HashMap<String, usize>,
+    stacks: HashMap<String, Vec<String>>,
+}
+
+impl SsaRenameState {
+    fn new() -> Self {
+        Self {
+            counters: HashMap::new(),
+            stacks: HashMap::new(),
+        }
+    }
+
+    fn base_name(name: &str) -> String {
+        match name.rfind('_') {
+            Some(pos)
+                if pos + 1 < name.len()
+                    && name[pos + 1..].chars().all(|c| c.is_ascii_digit()) =>
+            {
+                name[..pos].to_string()
+            }
+            _ => name.to_string(),
+        }
+    }
+
+    fn define(&mut self, name: &str) -> String {
+        let base = Self::base_name(name);
+
+        let counter = self.counters.entry(base.clone()).or_insert(0);
+
+        let version = *counter;
+        *counter += 1;
+
+        let renamed = format!("{}_{}", base, version);
+
+        self.stacks
+            .entry(base)
+            .or_default()
+            .push(renamed.clone());
+
+        renamed
+    }
+
+    fn current(&self, name: &str) -> Option<String> {
+        let base = Self::base_name(name);
+
+        self.stacks
+            .get(&base)
+            .and_then(|stack| stack.last())
+            .cloned()
+    }
+
+    fn pop_definition(&mut self, name: &str) {
+        let base = Self::base_name(name);
+
+        if let Some(stack) = self.stacks.get_mut(&base) {
+            stack.pop();
+
+            if stack.is_empty() {
+                self.stacks.remove(&base);
+            }
+        }
+    }
+}
+
+fn rename_dominator_tree(
+    program: &mut Program,
+    cfg: &ControlFlowGraph,
+) {
+    if cfg.blocks.is_empty() {
+        return;
+    }
+
+    let mut state = SsaRenameState::new();
+
+    rename_dom_block(
+        program,
+        cfg,
+        0,
+        &mut state,
+    );
+}
+
+fn rename_dom_block(
+    program: &mut Program,
+    cfg: &ControlFlowGraph,
+    block_id: usize,
+    state: &mut SsaRenameState,
+) {
+    if block_id >= cfg.blocks.len() {
+        return;
+    }
+
+    /*
+     * IMPORTANT:
+     *
+     * We cannot compare CFG statements with Program statements
+     * using == because Statement intentionally does not implement
+     * PartialEq.
+     *
+     * Instead, the CFG block stores cloned statements. We locate
+     * matching statements structurally through a deterministic
+     * sequential cursor.
+     *
+     * This avoids adding PartialEq to the IR merely for the SSA
+     * implementation.
+     */
+
+    let block_statements = cfg.blocks[block_id].statements.clone();
+
+    let mut definitions: Vec<String> = Vec::new();
+
+    for cfg_stmt in block_statements.iter() {
+
+        /*
+         * Find the next corresponding statement by walking the
+         * program sequentially.
+         *
+         * The cursor is local to this block because CFG construction
+         * currently flattens branches.
+         *
+         * We deliberately use discriminants and relevant identifying
+         * fields rather than Statement == Statement.
+         */
+
+        let mut statement_index: Option<usize> = None;
+
+        for index in 0..program.statements.len() {
+            let candidate = &program.statements[index];
+
+            if statement_kind_matches(candidate, cfg_stmt) {
+                statement_index = Some(index);
+                break;
+            }
+        }
+
+        let Some(index) = statement_index else {
+            continue;
+        };
+
+        let stmt = &mut program.statements[index];
+
+        /*
+         * Rename uses before creating the new definition.
+         */
+
+        match stmt {
+            Statement::Move { source, .. } => {
+                if let Source::Variable(name) = source {
+                    if let Some(current) = state.current(name) {
+                        *name = current;
+                    }
+                }
+            }
+
+            Statement::Compute { expr, .. } => {
+                rename_expression_with_state(expr, state);
+            }
+
+            Statement::If { condition, .. } => {
+                rename_condition_with_state(condition, state);
+            }
+
+            Statement::PerformUntil { condition, .. } => {
+                rename_condition_with_state(condition, state);
+            }
+
+            Statement::PerformVarying { until, .. } => {
+                rename_condition_with_state(until, state);
+            }
+
+            _ => {}
+        }
+
+        /*
+         * Rename definitions.
+         */
+
+        match stmt {
+            Statement::Phi { variable } => {
+                let original = variable.clone();
+                let renamed = state.define(&original);
+
+                *variable = renamed;
+                definitions.push(original);
+            }
+
+            Statement::Move { target, .. } => {
+                let original = target.clone();
+                let renamed = state.define(&original);
+
+                *target = renamed;
+                definitions.push(original);
+            }
+
+            Statement::Compute { target, .. } => {
+                let original = target.clone();
+                let renamed = state.define(&original);
+
+                *target = renamed;
+                definitions.push(original);
+            }
+
+            Statement::Add { target, .. }
+            | Statement::Subtract { target, .. }
+            | Statement::Multiply { target, .. }
+            | Statement::Divide { target, .. } => {
+                let original = target.clone();
+                let renamed = state.define(&original);
+
+                *target = renamed;
+                definitions.push(original);
+            }
+
+            _ => {}
+        }
+    }
+
+    /*
+     * Continue down the dominator tree.
+     */
+
+    let children = cfg.blocks[block_id].dom_children.clone();
+
+    for child in children {
+        rename_dom_block(
+            program,
+            cfg,
+            child,
+            state,
+        );
+    }
+
+    /*
+     * Restore the state when leaving this dominator scope.
+     */
+
+    for definition in definitions.into_iter().rev() {
+        state.pop_definition(&definition);
+    }
+}
+
+fn statement_kind_matches(
+    a: &Statement,
+    b: &Statement,
+) -> bool {
+    match (a, b) {
+        (Statement::Phi { .. }, Statement::Phi { .. }) => true,
+
+        (Statement::Move { .. }, Statement::Move { .. }) => true,
+
+        (Statement::Compute { .. }, Statement::Compute { .. }) => true,
+
+        (Statement::Add { .. }, Statement::Add { .. }) => true,
+
+        (Statement::Subtract { .. }, Statement::Subtract { .. }) => true,
+
+        (Statement::Multiply { .. }, Statement::Multiply { .. }) => true,
+
+        (Statement::Divide { .. }, Statement::Divide { .. }) => true,
+
+        (Statement::If { .. }, Statement::If { .. }) => true,
+
+        (Statement::PerformUntil { .. }, Statement::PerformUntil { .. }) => true,
+
+        (Statement::PerformVarying { .. }, Statement::PerformVarying { .. }) => true,
+
+        _ => false,
+    }
+}
+
+fn rename_expression_with_state(
+    expr: &mut Expression,
+    state: &SsaRenameState,
+) {
+    match expr {
+        Expression::Variable(name) => {
+            if let Some(current) = state.current(name) {
+                *name = current;
+            }
+        }
+
+        Expression::Binary { left, right, .. } => {
+            rename_expression_with_state(left, state);
+            rename_expression_with_state(right, state);
+        }
+
+        _ => {}
+    }
+}
+
+fn rename_condition_with_state(
+    condition: &mut Condition,
+    state: &SsaRenameState,
+) {
+    if let Some(current) = state.current(&condition.left) {
+        condition.left = current;
+    }
+
+    if let Some(current) = state.current(&condition.right) {
+        condition.right = current;
+    }
+}
 #[cfg(test)]
 mod use_def_tests {
 
@@ -889,3 +1197,6 @@ mod phi_regression_tests_v2 {
         );
     }
 }
+
+
+
