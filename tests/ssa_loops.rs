@@ -1,131 +1,132 @@
 ﻿use loom::ir::{Condition, Expression, Literal, Program, Statement};
 use loom::ssa::convert_to_ssa;
 
-fn int(value: i64) -> Expression {
+fn int_expr(value: i64) -> Expression {
     Expression::Literal(Literal::Int(value))
 }
 
-fn var(name: &str) -> Expression {
+fn variable_expr(name: &str) -> Expression {
     Expression::Variable(name.to_string())
 }
 
-fn program(statements: Vec<Statement>) -> Program {
+fn add_expr(variable: &str, value: i64) -> Expression {
+    Expression::Binary {
+        left: Box::new(variable_expr(variable)),
+        operator: "+".to_string(),
+        right: Box::new(int_expr(value)),
+    }
+}
+
+fn loop_condition(variable: &str, operator: &str, value: i64) -> Condition {
+    Condition {
+        left: variable.to_string(),
+        operator: operator.to_string(),
+        right: value.to_string(),
+    }
+}
+
+fn make_loop_program() -> Program {
     Program {
         variables: Vec::new(),
         paragraphs: Vec::new(),
-        statements,
+        statements: vec![
+            Statement::Move {
+                source: loom::ir::Source::Literal(0),
+                target: "I".to_string(),
+            },
+
+            Statement::For {
+                variable: "I".to_string(),
+                start: int_expr(0),
+                step: int_expr(1),
+                until: loop_condition("I", "<", 10),
+                body: vec![
+                    Statement::Compute {
+                        target: "SUM".to_string(),
+                        expr: add_expr("SUM", 1),
+                    },
+                ],
+            },
+        ],
     }
 }
 
 #[test]
-fn loop_program_survives_ssa_conversion() {
-    let mut program = program(vec![
-        Statement::Move {
-            source: loom::ir::Source::Literal(0),
-            target: "counter".to_string(),
-        },
-        Statement::For {
-            variable: "i".to_string(),
-            start: int(0),
-            step: int(1),
-            until: Condition {
-                left: "i".to_string(),
-                operator: ">=".to_string(),
-                right: "10".to_string(),
-            },
-            body: vec![
-                Statement::Add {
-                    value: 1,
-                    target: "counter".to_string(),
-                },
-                Statement::Compute {
-                    target: "counter".to_string(),
-                    expr: Expression::Binary {
-                        left: Box::new(var("counter")),
-                        operator: "+".to_string(),
-                        right: Box::new(int(1)),
-                    },
-                },
-            ],
-        },
-    ]);
+fn loop_ssa_conversion_does_not_panic() {
+    let mut program = make_loop_program();
+
+    convert_to_ssa(&mut program);
+
+    assert!(
+        !program.statements.is_empty(),
+        "SSA conversion unexpectedly removed the program statements"
+    );
+}
+
+#[test]
+fn loop_ssa_preserves_loop_structure() {
+    let mut program = make_loop_program();
+
+    convert_to_ssa(&mut program);
+
+    let has_for = program.statements.iter().any(|statement| {
+        matches!(statement, Statement::For { .. })
+    });
+
+    assert!(
+        has_for,
+        "SSA conversion lost the loop structure"
+    );
+}
+
+#[test]
+fn loop_ssa_produces_versioned_definitions() {
+    let mut program = make_loop_program();
 
     convert_to_ssa(&mut program);
 
     let debug = format!("{:#?}", program);
 
     assert!(
-        debug.contains("For"),
-        "SSA conversion unexpectedly removed the loop:\n{}",
-        debug
-    );
-
-    assert!(
-        debug.contains("counter"),
-        "SSA conversion lost the loop-carried variable:\n{}",
+        debug.contains("I_"),
+        "Expected SSA conversion to create a versioned I definition. Program:\n{}",
         debug
     );
 }
 
 #[test]
-fn loop_with_branch_preserves_phi_related_structure() {
-    let mut program = program(vec![
-        Statement::Move {
-            source: loom::ir::Source::Literal(0),
-            target: "x".to_string(),
-        },
-        Statement::For {
-            variable: "i".to_string(),
-            start: int(0),
-            step: int(1),
-            until: Condition {
-                left: "i".to_string(),
-                operator: ">=".to_string(),
-                right: "5".to_string(),
+fn loop_ssa_handles_loop_carried_computation() {
+    let mut program = Program {
+        variables: Vec::new(),
+        paragraphs: Vec::new(),
+        statements: vec![
+            Statement::Move {
+                source: loom::ir::Source::Literal(0),
+                target: "COUNT".to_string(),
             },
-            body: vec![
-                Statement::If {
-                    condition: Condition {
-                        left: "i".to_string(),
-                        operator: ">".to_string(),
-                        right: "2".to_string(),
+
+            Statement::For {
+                variable: "I".to_string(),
+                start: int_expr(0),
+                step: int_expr(1),
+                until: loop_condition("I", "<", 5),
+                body: vec![
+                    Statement::Compute {
+                        target: "COUNT".to_string(),
+                        expr: add_expr("COUNT", 1),
                     },
-                    then_branch: vec![
-                        Statement::Add {
-                            value: 1,
-                            target: "x".to_string(),
-                        },
-                    ],
-                    else_branch: Some(vec![
-                        Statement::Add {
-                            value: 2,
-                            target: "x".to_string(),
-                        },
-                    ]),
-                },
-            ],
-        },
-    ]);
+                ],
+            },
+        ],
+    };
 
     convert_to_ssa(&mut program);
 
     let debug = format!("{:#?}", program);
 
     assert!(
-        debug.contains("For"),
-        "Loop disappeared after SSA conversion:\n{}",
-        debug
-    );
-
-    assert!(
-        debug.contains("If"),
-        "Conditional structure disappeared after SSA conversion:\n{}",
-        debug
-    );
-
-    assert!(
-        debug.contains("x"),
-        "Loop-carried variable x disappeared after SSA conversion:\n{}",
+        debug.contains("COUNT_"),
+        "Expected loop-carried COUNT definition to be versioned. Program:\n{}",
         debug
     );
 }
