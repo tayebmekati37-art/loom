@@ -1,4 +1,4 @@
-use crate::ir::*;
+﻿use crate::ir::*;
 
 #[derive(Debug, Clone)]
 pub struct BasicBlock {
@@ -95,31 +95,84 @@ fn rebuild_successors(cfg: &mut ControlFlowGraph) {
             continue;
         }
 
+        // --------------------------------------------------------
+        // FOR loop
+        //
+        // split_into_blocks() creates:
+        //
+        //   block_id     = loop header
+        //   block_id + 1 = loop body
+        //   block_id + 2 = loop exit
+        //
+        // Therefore:
+        //
+        //   header -> body
+        //   header -> exit
+        //   body   -> header
+        //   exit   -> normal fall-through
+        // --------------------------------------------------------
+
+        if matches!(last_statement, Some(Statement::For { .. }))
+            && block_id + 2 < block_count
+        {
+            let body_block = block_id + 1;
+            let exit_block = block_id + 2;
+
+            cfg.blocks[block_id]
+                .successors
+                .push(body_block);
+
+            cfg.blocks[block_id]
+                .successors
+                .push(exit_block);
+
+            cfg.blocks[body_block]
+                .successors
+                .push(block_id);
+
+            block_id += 2;
+            continue;
+        }
+
+        // --------------------------------------------------------
+        // IF
+        // --------------------------------------------------------
+
         let is_if = matches!(last_statement, Some(Statement::If { .. }));
 
-        if is_if && block_id + 2 < block_count {
+        if is_if && block_id + 3 < block_count {
             let then_block = block_id + 1;
             let else_block = block_id + 2;
             let join_block = block_id + 3;
 
-            // IF condition branches to THEN and ELSE.
-            cfg.blocks[block_id].successors.push(then_block);
-            cfg.blocks[block_id].successors.push(else_block);
+            cfg.blocks[block_id]
+                .successors
+                .push(then_block);
 
-            // Both branches converge at the join block.
-            if join_block < block_count {
-                cfg.blocks[then_block].successors.push(join_block);
-                cfg.blocks[else_block].successors.push(join_block);
-            }
+            cfg.blocks[block_id]
+                .successors
+                .push(else_block);
 
-            // Skip the THEN and ELSE blocks.
+            cfg.blocks[then_block]
+                .successors
+                .push(join_block);
+
+            cfg.blocks[else_block]
+                .successors
+                .push(join_block);
+
             block_id += 3;
             continue;
         }
 
-        // Ordinary sequential fall-through.
+        // --------------------------------------------------------
+        // Ordinary sequential fall-through
+        // --------------------------------------------------------
+
         if block_id + 1 < block_count {
-            cfg.blocks[block_id].successors.push(block_id + 1);
+            cfg.blocks[block_id]
+                .successors
+                .push(block_id + 1);
         }
 
         block_id += 1;
@@ -132,6 +185,50 @@ fn split_into_blocks(statements: &[Statement]) -> Vec<Vec<Statement>> {
 
     for stmt in statements {
         match stmt {
+            Statement::For {
+                variable,
+                start,
+                step,
+                until,
+                body,
+            } => {
+                if !current.is_empty() {
+                    blocks.push(std::mem::take(&mut current));
+                }
+
+                // Loop header.
+                //
+                // The body is intentionally removed from the header
+                // block. The CFG represents the loop structurally as:
+                //
+                //   header -> body
+                //   header -> exit
+                //   body   -> header
+                //
+                // The original body is stored in its own block.
+                blocks.push(vec![Statement::For {
+                    variable: variable.clone(),
+                    start: start.clone(),
+                    step: step.clone(),
+                    until: until.clone(),
+                    body: Vec::new(),
+                }]);
+
+                // Loop body.
+                //
+                // Keep the body together for this first CFG step.
+                // Nested structured control flow can be lowered
+                // separately once the basic loop shape is correct.
+                if body.is_empty() {
+                    blocks.push(vec![Statement::NoOp]);
+                } else {
+                    blocks.push(body.clone());
+                }
+
+                // Explicit loop exit block.
+                blocks.push(vec![Statement::NoOp]);
+            }
+
             Statement::If {
                 condition,
                 then_branch,
@@ -148,11 +245,9 @@ fn split_into_blocks(statements: &[Statement]) -> Vec<Vec<Statement>> {
                     else_branch: None,
                 }]);
 
-                // Flatten the THEN branch.
                 let then_blocks = split_into_blocks(then_branch);
                 blocks.extend(then_blocks);
 
-                // Flatten the ELSE branch.
                 if let Some(else_statements) = else_branch {
                     let else_blocks = split_into_blocks(else_statements);
                     blocks.extend(else_blocks);
@@ -535,3 +630,4 @@ mod dominance_tests {
         assert_eq!(cfg.blocks[2].dominance_frontier, vec![3]);
     }
 }
+

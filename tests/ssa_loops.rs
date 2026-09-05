@@ -130,3 +130,41 @@ fn loop_ssa_handles_loop_carried_computation() {
         debug
     );
 }
+
+#[test]
+fn loop_cfg_has_real_back_edge() {
+    let program = make_loop_program();
+    let cfg = loom::cfg::ControlFlowGraph::build(&program);
+
+    println!();
+    println!("=== LOOP CFG ===");
+    cfg.print();
+
+    // A real loop requires at least:
+    //   entry/header
+    //   body
+    //   exit
+    //
+    // and at least one successor must point backward
+    // to an earlier CFG block.
+    assert!(
+        cfg.blocks.len() >= 3,
+        "expected at least 3 CFG blocks for a For loop, got {}",
+        cfg.blocks.len()
+    );
+
+    let mut has_back_edge = false;
+
+    for block in &cfg.blocks {
+        for &successor in &block.successors {
+            if successor <= block.id {
+                has_back_edge = true;
+            }
+        }
+    }
+
+    assert!(
+        has_back_edge,
+        "expected a real loop back-edge in the CFG"
+    );
+}
