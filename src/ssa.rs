@@ -1,4 +1,4 @@
-﻿use crate::cfg::ControlFlowGraph;
+use crate::cfg::ControlFlowGraph;
 use crate::ir::*;
 use std::collections::{HashMap, HashSet};
 
@@ -929,6 +929,30 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
                 }
             }
 
+            Statement::For { body, .. } => {
+                // The CFG represents a For statement as:
+                //
+                //   cfg_block     = loop header
+                //   cfg_block + 1 = loop body
+                //   cfg_block + 2 = loop exit
+                //
+                // The For statement itself belongs to the loop header.
+                statement_to_block.insert(program_index, cfg_block);
+                program_index += 1;
+
+                // Map statements inside the loop body to the loop-body CFG block.
+                if !body.is_empty() {
+                    map_branch_statements(
+                        body,
+                        cfg_block + 1,
+                        &mut program_index,
+                        &mut statement_to_block,
+                    );
+                }
+
+                // Advance past header, body, and exit blocks.
+                cfg_block += 3;
+            }
             _ => {
                 statement_to_block.insert(program_index, cfg_block);
                 program_index += 1;
