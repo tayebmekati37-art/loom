@@ -1,4 +1,4 @@
-use crate::cfg::ControlFlowGraph;
+﻿use crate::cfg::ControlFlowGraph;
 use crate::ir::*;
 use std::collections::{HashMap, HashSet};
 
@@ -430,24 +430,66 @@ pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
             continue;
         }
 
-        // Find the first top-level statement after an IF.
+        // Map the CFG block back to the structured Program representation.
         //
-        // Example:
+        // CFG mapping used by find_phi_candidates():
         //
-        //   IF ...
-        //   MOVE X ...
+        //   normal statement -> one CFG block
         //
-        // Phi belongs before MOVE X in the structured representation.
+        //   For:
+        //       cfg_block     = loop header
+        //       cfg_block + 1 = loop body
+        //       cfg_block + 2 = loop exit
+        //
+        // A loop-carried Phi therefore belongs immediately before
+        // the corresponding top-level For statement.
+        //
+        // For an IF merge, preserve the existing structured placement:
+        // immediately after the IF statement.
+
         let mut position = None;
 
+        let mut current_cfg_block = 0usize;
+
         for index in 0..program.statements.len() {
-            if matches!(program.statements[index], Statement::If { .. }) {
-                if index + 1 < program.statements.len() {
-                    position = Some(index + 1);
-                    break;
+            match &program.statements[index] {
+                Statement::For { .. } => {
+                    // A loop header is exactly the CFG block represented
+                    // by this structured For statement.
+                    if block_id == current_cfg_block {
+                        // Only treat self-dominance-frontier blocks as
+                        // loop headers for this milestone.
+                        if cfg.blocks[block_id]
+                            .dominance_frontier
+                            .contains(&block_id)
+                        {
+                            position = Some(index);
+                            break;
+                        }
+                    }
+
+                    // For consumes three CFG blocks:
+                    // header, body, exit.
+                    current_cfg_block += 3;
                 }
 
-                position = Some(program.statements.len());
+                Statement::If { .. } => {
+                    if predecessor_count >= 2 {
+                        if index + 1 < program.statements.len() {
+                            position = Some(index + 1);
+                        } else {
+                            position = Some(program.statements.len());
+                        }
+
+                        break;
+                    }
+
+                    current_cfg_block += 1;
+                }
+
+                _ => {
+                    current_cfg_block += 1;
+                }
             }
         }
 
@@ -1221,6 +1263,7 @@ mod phi_regression_tests_v2 {
         );
     }
 }
+
 
 
 

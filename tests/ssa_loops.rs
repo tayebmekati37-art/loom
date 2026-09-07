@@ -168,3 +168,58 @@ fn loop_cfg_has_real_back_edge() {
         "expected a real loop back-edge in the CFG"
     );
 }
+
+#[test]
+fn loop_ssa_inserts_phi_at_loop_header() {
+    let mut program = Program {
+        variables: Vec::new(),
+        paragraphs: Vec::new(),
+        statements: vec![
+            Statement::Move {
+                source: loom::ir::Source::Literal(0),
+                target: "COUNT".to_string(),
+            },
+            Statement::For {
+                variable: "I".to_string(),
+                start: int_expr(0),
+                step: int_expr(1),
+                until: loop_condition("I", "<", 5),
+                body: vec![
+                    Statement::Compute {
+                        target: "COUNT".to_string(),
+                        expr: add_expr("COUNT", 1),
+                    },
+                ],
+            },
+        ],
+    };
+
+    let cfg = loom::cfg::ControlFlowGraph::build(&program);
+    let result = loom::ssa::insert_phi_nodes(&program, &cfg);
+
+    let debug = format!("{:#?}", result);
+
+    assert!(
+        debug.contains("Phi"),
+        "Expected a Phi node for loop-carried COUNT. Program:\n{}",
+        debug
+    );
+
+    let phi_index = result
+        .statements
+        .iter()
+        .position(|statement| matches!(statement, Statement::Phi { variable } if variable == "COUNT"))
+        .expect("Expected COUNT Phi node");
+
+    let for_index = result
+        .statements
+        .iter()
+        .position(|statement| matches!(statement, Statement::For { .. }))
+        .expect("Expected For statement");
+
+    assert!(
+        phi_index < for_index,
+        "Expected COUNT Phi before the loop header For statement. Program:\n{}",
+        debug
+    );
+}
