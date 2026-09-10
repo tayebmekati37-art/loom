@@ -699,6 +699,10 @@ fn rename_dom_block(
                 rename_condition_with_state(until, state);
             }
 
+            Statement::For { until, .. } => {
+                rename_condition_with_state(until, state);
+            }
+
             _ => {}
         }
 
@@ -742,6 +746,20 @@ fn rename_dom_block(
                 definitions.push(original);
             }
 
+            Statement::For { variable, body, .. } => {
+                let original = variable.clone();
+                let renamed = state.define(&original);
+
+                *variable = renamed;
+                definitions.push(original);
+
+                rename_structured_statements_with_state(
+                    body,
+                    state,
+                    &mut definitions,
+                );
+            }
+
             _ => {}
         }
     }
@@ -770,6 +788,101 @@ fn rename_dom_block(
     }
 }
 
+fn rename_structured_statements_with_state(
+    statements: &mut Vec<Statement>,
+    state: &mut SsaRenameState,
+    definitions: &mut Vec<String>,
+) {
+    for stmt in statements.iter_mut() {
+
+        // Rename uses first.
+        match stmt {
+            Statement::Move { source, .. } => {
+                if let Source::Variable(name) = source {
+                    if let Some(current) = state.current(name) {
+                        *name = current;
+                    }
+                }
+            }
+
+            Statement::Compute { expr, .. } => {
+                rename_expression_with_state(expr, state);
+            }
+
+            Statement::If { condition, .. } => {
+                rename_condition_with_state(condition, state);
+            }
+
+            Statement::PerformUntil { condition, .. } => {
+                rename_condition_with_state(condition, state);
+            }
+
+            Statement::PerformVarying { until, .. } => {
+                rename_condition_with_state(until, state);
+            }
+
+            Statement::For { until, .. } => {
+                rename_condition_with_state(until, state);
+            }
+
+            _ => {}
+        }
+
+        // Rename definitions.
+        match stmt {
+            Statement::Phi { variable } => {
+                let original = variable.clone();
+                let renamed = state.define(&original);
+
+                *variable = renamed;
+                definitions.push(original);
+            }
+
+            Statement::Move { target, .. } => {
+                let original = target.clone();
+                let renamed = state.define(&original);
+
+                *target = renamed;
+                definitions.push(original);
+            }
+
+            Statement::Compute { target, .. } => {
+                let original = target.clone();
+                let renamed = state.define(&original);
+
+                *target = renamed;
+                definitions.push(original);
+            }
+
+            Statement::Add { target, .. }
+            | Statement::Subtract { target, .. }
+            | Statement::Multiply { target, .. }
+            | Statement::Divide { target, .. } => {
+                let original = target.clone();
+                let renamed = state.define(&original);
+
+                *target = renamed;
+                definitions.push(original);
+            }
+
+            Statement::For { variable, body, .. } => {
+                let original = variable.clone();
+                let renamed = state.define(&original);
+
+                *variable = renamed;
+                definitions.push(original);
+
+                rename_structured_statements_with_state(
+                    body,
+                    state,
+                    definitions,
+                );
+            }
+
+            _ => {}
+        }
+    }
+}
 fn statement_kind_matches(
     a: &Statement,
     b: &Statement,
@@ -794,6 +907,7 @@ fn statement_kind_matches(
         (Statement::PerformUntil { .. }, Statement::PerformUntil { .. }) => true,
 
         (Statement::PerformVarying { .. }, Statement::PerformVarying { .. }) => true,
+        (Statement::For { .. }, Statement::For { .. }) => true,
 
         _ => false,
     }
@@ -1263,6 +1377,7 @@ mod phi_regression_tests_v2 {
         );
     }
 }
+
 
 
 
