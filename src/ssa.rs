@@ -603,11 +603,15 @@ fn rename_dominator_tree(
 
     let mut state = SsaRenameState::new();
 
+        // Shared cursor for sequential CFG -> Program statement matching.
+    let mut statement_cursor = 0usize;
+
     rename_dom_block(
         program,
         cfg,
         0,
         &mut state,
+        &mut statement_cursor,
     );
 }
 
@@ -616,6 +620,7 @@ fn rename_dom_block(
     cfg: &ControlFlowGraph,
     block_id: usize,
     state: &mut SsaRenameState,
+    statement_cursor: &mut usize,
 ) {
     if block_id >= cfg.blocks.len() {
         return;
@@ -639,6 +644,50 @@ fn rename_dom_block(
     let block_statements = cfg.blocks[block_id].statements.clone();
 
     let mut definitions: Vec<String> = Vec::new();
+    // Phi nodes are inserted after the CFG is built, so loop-header
+    // Phis are not present in cfg.blocks[].statements.
+    //
+    // When the current CFG block contains a For, the inserted Phi is
+    // immediately before that For in the structured program. Rename
+    // that Phi before processing the loop so the loop body sees the
+    // Phi version as the current definition.
+    if cfg.blocks[block_id]
+        .statements
+        .iter()
+        .any(|stmt| matches!(stmt, Statement::For { .. }))
+    {
+        for index in 0..program.statements.len() {
+            if index + 1 >= program.statements.len() {
+                continue;
+            }
+
+            let is_phi = matches!(
+                &program.statements[index],
+                Statement::Phi { .. }
+            );
+
+            let is_for = matches!(
+                &program.statements[index + 1],
+                Statement::For { .. }
+            );
+
+            if !is_phi || !is_for {
+                continue;
+            }
+
+            let stmt = &mut program.statements[index];
+
+            if let Statement::Phi { variable } = stmt {
+                let original = variable.clone();
+                let renamed = state.define(&original);
+
+                *variable = renamed;
+                definitions.push(original);
+            }
+
+            break;
+        }
+    }
 
     for cfg_stmt in block_statements.iter() {
 
@@ -646,8 +695,7 @@ fn rename_dom_block(
          * Find the next corresponding statement by walking the
          * program sequentially.
          *
-         * The cursor is local to this block because CFG construction
-         * currently flattens branches.
+         * The cursor is shared across the dominator-tree traversal.
          *
          * We deliberately use discriminants and relevant identifying
          * fields rather than Statement == Statement.
@@ -655,11 +703,13 @@ fn rename_dom_block(
 
         let mut statement_index: Option<usize> = None;
 
-        for index in 0..program.statements.len() {
+        // Continue from the previous matched Program statement.
+        for index in *statement_cursor..program.statements.len() {
             let candidate = &program.statements[index];
 
             if statement_kind_matches(candidate, cfg_stmt) {
                 statement_index = Some(index);
+                *statement_cursor = index + 1;
                 break;
             }
         }
@@ -776,7 +826,8 @@ fn rename_dom_block(
             cfg,
             child,
             state,
-        );
+                    statement_cursor,
+);
     }
 
     /*
@@ -1377,6 +1428,8 @@ mod phi_regression_tests_v2 {
         );
     }
 }
+
+
 
 
 
