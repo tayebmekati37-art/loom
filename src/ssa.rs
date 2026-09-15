@@ -926,7 +926,7 @@ fn rename_structured_statements_with_state(
                 rename_structured_statements_with_state(
                     body,
                     state,
-                    definitions,
+                    &mut *definitions,
                 );
             }
 
