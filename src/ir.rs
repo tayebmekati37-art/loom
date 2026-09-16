@@ -48,6 +48,7 @@ pub enum Source {
 pub enum Statement {
     Phi {
         variable: String,
+        incoming: Vec<(usize, String)>,
     },
 
     Replace {

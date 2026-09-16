@@ -1,4 +1,4 @@
-﻿use loom::ir::{Condition, Expression, Literal, Program, Statement};
+use loom::ir::{Condition, Expression, Literal, Program, Statement};
 use loom::ssa::convert_to_ssa;
 
 fn int_expr(value: i64) -> Expression {
@@ -34,18 +34,15 @@ fn make_loop_program() -> Program {
                 source: loom::ir::Source::Literal(0),
                 target: "I".to_string(),
             },
-
             Statement::For {
                 variable: "I".to_string(),
                 start: int_expr(0),
                 step: int_expr(1),
                 until: loop_condition("I", "<", 10),
-                body: vec![
-                    Statement::Compute {
-                        target: "SUM".to_string(),
-                        expr: add_expr("SUM", 1),
-                    },
-                ],
+                body: vec![Statement::Compute {
+                    target: "SUM".to_string(),
+                    expr: add_expr("SUM", 1),
+                }],
             },
         ],
     }
@@ -69,14 +66,12 @@ fn loop_ssa_preserves_loop_structure() {
 
     convert_to_ssa(&mut program);
 
-    let has_for = program.statements.iter().any(|statement| {
-        matches!(statement, Statement::For { .. })
-    });
+    let has_for = program
+        .statements
+        .iter()
+        .any(|statement| matches!(statement, Statement::For { .. }));
 
-    assert!(
-        has_for,
-        "SSA conversion lost the loop structure"
-    );
+    assert!(has_for, "SSA conversion lost the loop structure");
 }
 
 #[test]
@@ -104,18 +99,15 @@ fn loop_ssa_handles_loop_carried_computation() {
                 source: loom::ir::Source::Literal(0),
                 target: "COUNT".to_string(),
             },
-
             Statement::For {
                 variable: "I".to_string(),
                 start: int_expr(0),
                 step: int_expr(1),
                 until: loop_condition("I", "<", 5),
-                body: vec![
-                    Statement::Compute {
-                        target: "COUNT".to_string(),
-                        expr: add_expr("COUNT", 1),
-                    },
-                ],
+                body: vec![Statement::Compute {
+                    target: "COUNT".to_string(),
+                    expr: add_expr("COUNT", 1),
+                }],
             },
         ],
     };
@@ -163,10 +155,7 @@ fn loop_cfg_has_real_back_edge() {
         }
     }
 
-    assert!(
-        has_back_edge,
-        "expected a real loop back-edge in the CFG"
-    );
+    assert!(has_back_edge, "expected a real loop back-edge in the CFG");
 }
 
 #[test]
@@ -184,12 +173,10 @@ fn loop_ssa_inserts_phi_at_loop_header() {
                 start: int_expr(0),
                 step: int_expr(1),
                 until: loop_condition("I", "<", 5),
-                body: vec![
-                    Statement::Compute {
-                        target: "COUNT".to_string(),
-                        expr: add_expr("COUNT", 1),
-                    },
-                ],
+                body: vec![Statement::Compute {
+                    target: "COUNT".to_string(),
+                    expr: add_expr("COUNT", 1),
+                }],
             },
         ],
     };
@@ -208,7 +195,9 @@ fn loop_ssa_inserts_phi_at_loop_header() {
     let phi_index = result
         .statements
         .iter()
-        .position(|statement| matches!(statement, Statement::Phi { variable } if variable == "COUNT"))
+        .position(
+            |statement| matches!(statement, Statement::Phi { variable, .. } if variable == "COUNT"),
+        )
         .expect("Expected COUNT Phi node");
 
     let for_index = result
@@ -234,18 +223,15 @@ fn loop_ssa_renames_loop_body_with_dominator_state() {
                 source: loom::ir::Source::Literal(0),
                 target: "COUNT".to_string(),
             },
-
             Statement::For {
                 variable: "I".to_string(),
                 start: int_expr(0),
                 step: int_expr(1),
                 until: loop_condition("I", "<", 5),
-                body: vec![
-                    Statement::Compute {
-                        target: "COUNT".to_string(),
-                        expr: add_expr("COUNT", 1),
-                    },
-                ],
+                body: vec![Statement::Compute {
+                    target: "COUNT".to_string(),
+                    expr: add_expr("COUNT", 1),
+                }],
             },
         ],
     };

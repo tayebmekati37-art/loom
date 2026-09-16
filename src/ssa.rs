@@ -1,4 +1,4 @@
-﻿use crate::cfg::ControlFlowGraph;
+use crate::cfg::ControlFlowGraph;
 use crate::ir::*;
 use std::collections::{HashMap, HashSet};
 
@@ -459,10 +459,7 @@ pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
                     if block_id == current_cfg_block {
                         // Only treat self-dominance-frontier blocks as
                         // loop headers for this milestone.
-                        if cfg.blocks[block_id]
-                            .dominance_frontier
-                            .contains(&block_id)
-                        {
+                        if cfg.blocks[block_id].dominance_frontier.contains(&block_id) {
                             position = Some(index);
                             break;
                         }
@@ -505,7 +502,10 @@ pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
     for (position, variables) in insertion_points.into_iter().rev() {
         let phi_statements: Vec<Statement> = variables
             .into_iter()
-            .map(|variable| Statement::Phi { variable })
+            .map(|variable| Statement::Phi {
+                variable,
+                incoming: Vec::new(),
+            })
             .collect();
 
         result.statements.splice(position..position, phi_statements);
@@ -544,8 +544,7 @@ impl SsaRenameState {
     fn base_name(name: &str) -> String {
         match name.rfind('_') {
             Some(pos)
-                if pos + 1 < name.len()
-                    && name[pos + 1..].chars().all(|c| c.is_ascii_digit()) =>
+                if pos + 1 < name.len() && name[pos + 1..].chars().all(|c| c.is_ascii_digit()) =>
             {
                 name[..pos].to_string()
             }
@@ -563,10 +562,7 @@ impl SsaRenameState {
 
         let renamed = format!("{}_{}", base, version);
 
-        self.stacks
-            .entry(base)
-            .or_default()
-            .push(renamed.clone());
+        self.stacks.entry(base).or_default().push(renamed.clone());
 
         renamed
     }
@@ -593,28 +589,99 @@ impl SsaRenameState {
     }
 }
 
-fn rename_dominator_tree(
-    program: &mut Program,
-    cfg: &ControlFlowGraph,
-) {
+fn rename_dominator_tree(program: &mut Program, cfg: &ControlFlowGraph) {
     if cfg.blocks.is_empty() {
         return;
     }
 
     let mut state = SsaRenameState::new();
 
-        // Shared cursor for sequential CFG -> Program statement matching.
+    // Shared cursor for sequential CFG -> Program statement matching.
     let mut statement_cursor = 0usize;
 
-    rename_dom_block(
-        program,
-        cfg,
-        0,
-        &mut state,
-        &mut statement_cursor,
-    );
+    rename_dom_block(program, cfg, 0, &mut state, &mut statement_cursor);
 }
 
+fn populate_successor_phi_incomings(
+    program: &mut Program,
+    cfg: &ControlFlowGraph,
+    block_id: usize,
+    state: &SsaRenameState,
+) {
+    if block_id >= cfg.blocks.len() {
+        return;
+    }
+
+    let successors = cfg.blocks[block_id].successors.clone();
+
+    for successor_id in successors {
+        if successor_id >= cfg.blocks.len() {
+            continue;
+        }
+
+        let successor_statements = cfg.blocks[successor_id].statements.clone();
+
+        if successor_statements.is_empty() {
+            continue;
+        }
+
+        /*
+         * The CFG was created before Phi insertion.
+         *
+         * Find the first original statement belonging to the
+         * successor in the current Program.
+         */
+        let first_cfg_statement = &successor_statements[0];
+
+        let mut first_program_index: Option<usize> = None;
+
+        for index in 0..program.statements.len() {
+            if statement_kind_matches(&program.statements[index], first_cfg_statement) {
+                first_program_index = Some(index);
+                break;
+            }
+        }
+
+        let Some(first_index) = first_program_index else {
+            continue;
+        };
+
+        /*
+         * Phi nodes are inserted immediately before the successor's
+         * first original statement.
+         */
+        let mut phi_start = first_index;
+
+        while phi_start > 0 {
+            if matches!(&program.statements[phi_start - 1], Statement::Phi { .. }) {
+                phi_start -= 1;
+            } else {
+                break;
+            }
+        }
+
+        for index in phi_start..first_index {
+            let Statement::Phi { variable, incoming } = &mut program.statements[index] else {
+                continue;
+            };
+
+            let base = SsaRenameState::base_name(variable);
+
+            let Some(current_version) = state.current(&base) else {
+                continue;
+            };
+
+            if let Some(existing) = incoming
+                .iter_mut()
+                .find(|(predecessor, _)| *predecessor == block_id)
+            {
+                existing.1 = current_version;
+            } else {
+                incoming.push((block_id, current_version));
+            }
+        }
+    }
+}
 fn rename_dom_block(
     program: &mut Program,
     cfg: &ControlFlowGraph,
@@ -661,15 +728,9 @@ fn rename_dom_block(
                 continue;
             }
 
-            let is_phi = matches!(
-                &program.statements[index],
-                Statement::Phi { .. }
-            );
+            let is_phi = matches!(&program.statements[index], Statement::Phi { .. });
 
-            let is_for = matches!(
-                &program.statements[index + 1],
-                Statement::For { .. }
-            );
+            let is_for = matches!(&program.statements[index + 1], Statement::For { .. });
 
             if !is_phi || !is_for {
                 continue;
@@ -677,7 +738,7 @@ fn rename_dom_block(
 
             let stmt = &mut program.statements[index];
 
-            if let Statement::Phi { variable } = stmt {
+            if let Statement::Phi { variable, .. } = stmt {
                 let original = variable.clone();
                 let renamed = state.define(&original);
 
@@ -690,7 +751,6 @@ fn rename_dom_block(
     }
 
     for cfg_stmt in block_statements.iter() {
-
         /*
          * Find the next corresponding statement by walking the
          * program sequentially.
@@ -761,7 +821,7 @@ fn rename_dom_block(
          */
 
         match stmt {
-            Statement::Phi { variable } => {
+            Statement::Phi { variable, .. } => {
                 let original = variable.clone();
                 let renamed = state.define(&original);
 
@@ -803,11 +863,7 @@ fn rename_dom_block(
                 *variable = renamed;
                 definitions.push(original);
 
-                rename_structured_statements_with_state(
-                    body,
-                    state,
-                    &mut definitions,
-                );
+                rename_structured_statements_with_state(body, state, &mut definitions);
             }
 
             _ => {}
@@ -818,16 +874,12 @@ fn rename_dom_block(
      * Continue down the dominator tree.
      */
 
+    populate_successor_phi_incomings(program, cfg, block_id, state);
+
     let children = cfg.blocks[block_id].dom_children.clone();
 
     for child in children {
-        rename_dom_block(
-            program,
-            cfg,
-            child,
-            state,
-                    statement_cursor,
-);
+        rename_dom_block(program, cfg, child, state, statement_cursor);
     }
 
     /*
@@ -845,7 +897,6 @@ fn rename_structured_statements_with_state(
     definitions: &mut Vec<String>,
 ) {
     for stmt in statements.iter_mut() {
-
         // Rename uses first.
         match stmt {
             Statement::Move { source, .. } => {
@@ -881,7 +932,7 @@ fn rename_structured_statements_with_state(
 
         // Rename definitions.
         match stmt {
-            Statement::Phi { variable } => {
+            Statement::Phi { variable, .. } => {
                 let original = variable.clone();
                 let renamed = state.define(&original);
 
@@ -923,21 +974,14 @@ fn rename_structured_statements_with_state(
                 *variable = renamed;
                 definitions.push(original);
 
-                rename_structured_statements_with_state(
-                    body,
-                    state,
-                    &mut *definitions,
-                );
+                rename_structured_statements_with_state(body, state, &mut *definitions);
             }
 
             _ => {}
         }
     }
 }
-fn statement_kind_matches(
-    a: &Statement,
-    b: &Statement,
-) -> bool {
+fn statement_kind_matches(a: &Statement, b: &Statement) -> bool {
     match (a, b) {
         (Statement::Phi { .. }, Statement::Phi { .. }) => true,
 
@@ -964,10 +1008,7 @@ fn statement_kind_matches(
     }
 }
 
-fn rename_expression_with_state(
-    expr: &mut Expression,
-    state: &SsaRenameState,
-) {
+fn rename_expression_with_state(expr: &mut Expression, state: &SsaRenameState) {
     match expr {
         Expression::Variable(name) => {
             if let Some(current) = state.current(name) {
@@ -984,10 +1025,7 @@ fn rename_expression_with_state(
     }
 }
 
-fn rename_condition_with_state(
-    condition: &mut Condition,
-    state: &SsaRenameState,
-) {
+fn rename_condition_with_state(condition: &mut Condition, state: &SsaRenameState) {
     if let Some(current) = state.current(&condition.left) {
         condition.left = current;
     }
@@ -1402,7 +1440,7 @@ mod phi_regression_tests_v2 {
             .statements
             .iter()
             .filter_map(|stmt| match stmt {
-                Statement::Phi { variable } => Some(variable.clone()),
+                Statement::Phi { variable, .. } => Some(variable.clone()),
                 _ => None,
             })
             .collect();
@@ -1411,7 +1449,7 @@ mod phi_regression_tests_v2 {
             .statements
             .iter()
             .filter_map(|stmt| match stmt {
-                Statement::Phi { variable } => Some(variable.clone()),
+                Statement::Phi { variable, .. } => Some(variable.clone()),
                 _ => None,
             })
             .collect();
@@ -1429,9 +1467,47 @@ mod phi_regression_tests_v2 {
     }
 }
 
+#[cfg(test)]
+mod v412_regression_tests {
+    use super::*;
 
+    #[test]
+    fn v412_loop_carried_variable_gets_phi_and_versions() {
+        let mut program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![
+                Statement::Move {
+                    source: Source::Literal(0),
+                    target: "X".to_string(),
+                },
+                Statement::For {
+                    variable: "I".to_string(),
+                    start: Expression::Variable("I".to_string()),
+                    step: Expression::Variable("I".to_string()),
+                    body: vec![Statement::Move {
+                        source: Source::Literal(1),
+                        target: "X".to_string(),
+                    }],
+                    until: Condition {
+                        left: "I".to_string(),
+                        operator: ">=".to_string(),
+                        right: "10".to_string(),
+                    },
+                },
+                Statement::Compute {
+                    target: "Y".to_string(),
+                    expr: Expression::Variable("X".to_string()),
+                },
+            ],
+        };
 
+        convert_to_ssa(&mut program);
 
+        let debug = format!("{:#?}", program);
 
-
-
+        assert!(debug.contains("X_0"));
+        assert!(debug.contains("X_1"));
+        assert!(debug.contains("Y_0"));
+    }
+}
