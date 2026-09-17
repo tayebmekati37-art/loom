@@ -264,3 +264,71 @@ fn loop_ssa_renames_loop_body_with_dominator_state() {
         debug
     );
 }
+
+#[test]
+fn v414_loop_phi_has_incoming_values() {
+    let mut program = Program {
+        variables: Vec::new(),
+        paragraphs: Vec::new(),
+        statements: vec![
+            Statement::Move {
+                source: loom::ir::Source::Literal(0),
+                target: "COUNT".to_string(),
+            },
+            Statement::For {
+                variable: "I".to_string(),
+                start: int_expr(0),
+                step: int_expr(1),
+                until: loop_condition("I", "<", 5),
+                body: vec![Statement::Compute {
+                    target: "COUNT".to_string(),
+                    expr: add_expr("COUNT", 1),
+                }],
+            },
+        ],
+    };
+
+    convert_to_ssa(&mut program);
+
+    let phi = program
+        .statements
+        .iter()
+        .find_map(|statement| {
+            if let Statement::Phi {
+                variable,
+                incoming,
+            } = statement
+            {
+                Some((variable, incoming))
+            } else {
+                None
+            }
+        })
+        .expect("Expected a Phi node");
+
+    let (variable, incoming) = phi;
+
+    assert_eq!(variable, "COUNT_1");
+
+    assert!(
+        !incoming.is_empty(),
+        "Expected Phi {} to contain incoming values. Program:\n{:#?}",
+        variable,
+        program
+    );
+
+    for (predecessor, version) in incoming {
+        assert!(
+            *predecessor < program.statements.len(),
+            "Phi predecessor {} looks invalid. Program:\n{:#?}",
+            predecessor,
+            program
+        );
+
+        assert!(
+            version.starts_with("COUNT_"),
+            "Expected COUNT SSA version in Phi incoming value, got {}",
+            version
+        );
+    }
+}
