@@ -711,45 +711,57 @@ fn rename_dom_block(
     let block_statements = cfg.blocks[block_id].statements.clone();
 
     let mut definitions: Vec<String> = Vec::new();
-    // Phi nodes are inserted after the CFG is built, so loop-header
-    // Phis are not present in cfg.blocks[].statements.
-    //
-    // When the current CFG block contains a For, the inserted Phi is
-    // immediately before that For in the structured program. Rename
-    // that Phi before processing the loop so the loop body sees the
-    // Phi version as the current definition.
-    if cfg.blocks[block_id]
-        .statements
-        .iter()
-        .any(|stmt| matches!(stmt, Statement::For { .. }))
-    {
-        for index in 0..program.statements.len() {
-            if index + 1 >= program.statements.len() {
-                continue;
+
+    /*
+     * Phi nodes are inserted after the CFG is built, so they are not
+     * present in cfg.blocks[].statements.
+     *
+     * Find the first original statement belonging to this CFG block.
+     * Any Phi nodes immediately before that statement belong to this
+     * block and must be defined before normal statements are renamed.
+     */
+    if !cfg.blocks[block_id].statements.is_empty() {
+        let first_cfg_statement = &cfg.blocks[block_id].statements[0];
+
+        let mut first_program_index: Option<usize> = None;
+
+        for index in *statement_cursor..program.statements.len() {
+            if statement_kind_matches(
+                &program.statements[index],
+                first_cfg_statement,
+            ) {
+                first_program_index = Some(index);
+                break;
+            }
+        }
+
+        if let Some(first_index) = first_program_index {
+            let mut phi_start = first_index;
+
+            while phi_start > 0 {
+                if matches!(
+                    &program.statements[phi_start - 1],
+                    Statement::Phi { .. }
+                ) {
+                    phi_start -= 1;
+                } else {
+                    break;
+                }
             }
 
-            let is_phi = matches!(&program.statements[index], Statement::Phi { .. });
+            for index in phi_start..first_index {
+                let stmt = &mut program.statements[index];
 
-            let is_for = matches!(&program.statements[index + 1], Statement::For { .. });
+                if let Statement::Phi { variable, .. } = stmt {
+                    let original = variable.clone();
+                    let renamed = state.define(&original);
 
-            if !is_phi || !is_for {
-                continue;
+                    *variable = renamed;
+                    definitions.push(original);
+                }
             }
-
-            let stmt = &mut program.statements[index];
-
-            if let Statement::Phi { variable, .. } = stmt {
-                let original = variable.clone();
-                let renamed = state.define(&original);
-
-                *variable = renamed;
-                definitions.push(original);
-            }
-
-            break;
         }
     }
-
     for cfg_stmt in block_statements.iter() {
         /*
          * Find the next corresponding statement by walking the
