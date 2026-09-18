@@ -332,3 +332,88 @@ fn v414_loop_phi_has_incoming_values() {
         );
     }
 }
+
+#[test]
+fn v415_phi_incomings_match_cfg_predecessors() {
+    let mut program = Program {
+        variables: Vec::new(),
+        paragraphs: Vec::new(),
+        statements: vec![
+            Statement::Move {
+                source: loom::ir::Source::Literal(0),
+                target: "COUNT".to_string(),
+            },
+            Statement::For {
+                variable: "I".to_string(),
+                start: int_expr(0),
+                step: int_expr(1),
+                until: loop_condition("I", "<", 5),
+                body: vec![Statement::Compute {
+                    target: "COUNT".to_string(),
+                    expr: add_expr("COUNT", 1),
+                }],
+            },
+        ],
+    };
+
+    let cfg = loom::cfg::ControlFlowGraph::build(&program);
+
+    convert_to_ssa(&mut program);
+
+    let phi = program
+        .statements
+        .iter()
+        .find_map(|statement| {
+            if let Statement::Phi {
+                variable,
+                incoming,
+            } = statement
+            {
+                Some((variable, incoming))
+            } else {
+                None
+            }
+        })
+        .expect("Expected COUNT Phi node");
+
+    let (variable, incoming) = phi;
+
+    assert_eq!(variable, "COUNT_1");
+    assert!(!incoming.is_empty());
+
+    // Every Phi incoming must identify a real CFG predecessor
+    // of some CFG block.
+    for (predecessor, version) in incoming {
+        assert!(
+            *predecessor < cfg.blocks.len(),
+            "Phi {} references nonexistent CFG block {}. CFG has {} blocks.",
+            variable,
+            predecessor,
+            cfg.blocks.len()
+        );
+
+        assert!(
+            version.starts_with("COUNT_"),
+            "Phi {} has unexpected incoming version {} from block {}.",
+            variable,
+            version,
+            predecessor
+        );
+    }
+
+    // A loop must contain a back-edge. The Phi should therefore
+    // have at least one incoming value from a block participating
+    // in the loop CFG.
+    let has_back_edge = cfg.blocks.iter().any(|block| {
+        block
+            .successors
+            .iter()
+            .any(|successor| *successor <= block.id)
+    });
+
+    assert!(
+        has_back_edge,
+        "Expected loop CFG to contain a back-edge. CFG:\n{:#?}",
+        cfg
+    );
+}
