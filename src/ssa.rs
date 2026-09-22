@@ -1184,6 +1184,11 @@ pub fn find_phi_candidates(program: &Program, cfg: &ControlFlowGraph) -> Vec<Phi
                         cfg_block += 1;
                     }
                 }
+
+                // The CFG contains a merge block after the THEN/ELSE
+                // branches. Advance past it before mapping the next
+                // top-level statement.
+                cfg_block += 1;
             }
 
             Statement::For { body, .. } => {
