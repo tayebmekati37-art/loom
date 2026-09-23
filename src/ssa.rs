@@ -726,10 +726,7 @@ fn rename_dom_block(
         let mut first_program_index: Option<usize> = None;
 
         for index in *statement_cursor..program.statements.len() {
-            if statement_kind_matches(
-                &program.statements[index],
-                first_cfg_statement,
-            ) {
+            if statement_kind_matches(&program.statements[index], first_cfg_statement) {
                 first_program_index = Some(index);
                 break;
             }
@@ -739,10 +736,7 @@ fn rename_dom_block(
             let mut phi_start = first_index;
 
             while phi_start > 0 {
-                if matches!(
-                    &program.statements[phi_start - 1],
-                    Statement::Phi { .. }
-                ) {
+                if matches!(&program.statements[phi_start - 1], Statement::Phi { .. }) {
                     phi_start -= 1;
                 } else {
                     break;
@@ -866,6 +860,43 @@ fn rename_dom_block(
 
                 *target = renamed;
                 definitions.push(original);
+            }
+
+            Statement::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                /*
+                 * Rename each branch independently.
+                 *
+                 * A definition created inside THEN must not become
+                 * the starting definition for ELSE. Both branches
+                 * eventually converge through the Phi node at the
+                 * merge point.
+                 */
+
+                let mut then_definitions = Vec::new();
+
+                rename_structured_statements_with_state(then_branch, state, &mut then_definitions);
+
+                for definition in then_definitions.into_iter().rev() {
+                    state.pop_definition(&definition);
+                }
+
+                if let Some(else_statements) = else_branch {
+                    let mut else_definitions = Vec::new();
+
+                    rename_structured_statements_with_state(
+                        else_statements,
+                        state,
+                        &mut else_definitions,
+                    );
+
+                    for definition in else_definitions.into_iter().rev() {
+                        state.pop_definition(&definition);
+                    }
+                }
             }
 
             Statement::For { variable, body, .. } => {
