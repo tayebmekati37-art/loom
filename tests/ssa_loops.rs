@@ -294,11 +294,7 @@ fn v414_loop_phi_has_incoming_values() {
         .statements
         .iter()
         .find_map(|statement| {
-            if let Statement::Phi {
-                variable,
-                incoming,
-            } = statement
-            {
+            if let Statement::Phi { variable, incoming } = statement {
                 Some((variable, incoming))
             } else {
                 None
@@ -364,11 +360,7 @@ fn v415_phi_incomings_match_cfg_predecessors() {
         .statements
         .iter()
         .find_map(|statement| {
-            if let Statement::Phi {
-                variable,
-                incoming,
-            } = statement
-            {
+            if let Statement::Phi { variable, incoming } = statement {
                 Some((variable, incoming))
             } else {
                 None

@@ -1,4 +1,4 @@
-﻿use crate::ir::*;
+use crate::ir::*;
 
 #[derive(Debug, Clone)]
 pub struct BasicBlock {
@@ -112,23 +112,15 @@ fn rebuild_successors(cfg: &mut ControlFlowGraph) {
         //   exit   -> normal fall-through
         // --------------------------------------------------------
 
-        if matches!(last_statement, Some(Statement::For { .. }))
-            && block_id + 2 < block_count
-        {
+        if matches!(last_statement, Some(Statement::For { .. })) && block_id + 2 < block_count {
             let body_block = block_id + 1;
             let exit_block = block_id + 2;
 
-            cfg.blocks[block_id]
-                .successors
-                .push(body_block);
+            cfg.blocks[block_id].successors.push(body_block);
 
-            cfg.blocks[block_id]
-                .successors
-                .push(exit_block);
+            cfg.blocks[block_id].successors.push(exit_block);
 
-            cfg.blocks[body_block]
-                .successors
-                .push(block_id);
+            cfg.blocks[body_block].successors.push(block_id);
 
             block_id += 2;
             continue;
@@ -145,21 +137,13 @@ fn rebuild_successors(cfg: &mut ControlFlowGraph) {
             let else_block = block_id + 2;
             let join_block = block_id + 3;
 
-            cfg.blocks[block_id]
-                .successors
-                .push(then_block);
+            cfg.blocks[block_id].successors.push(then_block);
 
-            cfg.blocks[block_id]
-                .successors
-                .push(else_block);
+            cfg.blocks[block_id].successors.push(else_block);
 
-            cfg.blocks[then_block]
-                .successors
-                .push(join_block);
+            cfg.blocks[then_block].successors.push(join_block);
 
-            cfg.blocks[else_block]
-                .successors
-                .push(join_block);
+            cfg.blocks[else_block].successors.push(join_block);
 
             block_id += 3;
             continue;
@@ -170,9 +154,7 @@ fn rebuild_successors(cfg: &mut ControlFlowGraph) {
         // --------------------------------------------------------
 
         if block_id + 1 < block_count {
-            cfg.blocks[block_id]
-                .successors
-                .push(block_id + 1);
+            cfg.blocks[block_id].successors.push(block_id + 1);
         }
 
         block_id += 1;
@@ -630,4 +612,3 @@ mod dominance_tests {
         assert_eq!(cfg.blocks[2].dominance_frontier, vec![3]);
     }
 }
-
