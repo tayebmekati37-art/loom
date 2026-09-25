@@ -31,6 +31,7 @@ pub fn convert_to_ssa(program: &mut Program) {
     // only for dominator ordering while matching statements back
     // into the current sequential IR.
     rename_dominator_tree(program, &cfg);
+    validate_ssa_structure(program, &cfg);
 }
 
 pub fn rename_variable(name: &str, version: usize) -> String {
@@ -1076,6 +1077,113 @@ fn rename_condition_with_state(condition: &mut Condition, state: &SsaRenameState
     if let Some(current) = state.current(&condition.right) {
         condition.right = current;
     }
+}
+fn validate_ssa_structure(program: &Program, cfg: &ControlFlowGraph) {
+    let mut definitions = HashSet::new();
+
+    fn collect_definitions(statements: &[Statement], definitions: &mut HashSet<String>) {
+        for statement in statements {
+            match statement {
+                Statement::Move { target, .. }
+                | Statement::Add { target, .. }
+                | Statement::Subtract { target, .. }
+                | Statement::Multiply { target, .. }
+                | Statement::Divide { target, .. }
+                | Statement::Compute { target, .. } => {
+                    if target.contains('_') {
+                        definitions.insert(target.clone());
+                    }
+                }
+
+                Statement::Phi { variable, .. } => {
+                    if variable.contains('_') {
+                        definitions.insert(variable.clone());
+                    }
+                }
+
+                Statement::If {
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    collect_definitions(then_branch, definitions);
+
+                    if let Some(branch) = else_branch {
+                        collect_definitions(branch, definitions);
+                    }
+                }
+
+                Statement::PerformUntil { body, .. }
+                | Statement::PerformVarying { body, .. }
+                | Statement::For { body, .. } => {
+                    collect_definitions(body, definitions);
+                }
+
+                _ => {}
+            }
+        }
+    }
+
+    collect_definitions(&program.statements, &mut definitions);
+
+    fn validate_phis(
+        statements: &[Statement],
+        cfg: &ControlFlowGraph,
+        definitions: &HashSet<String>,
+    ) {
+        for statement in statements {
+            match statement {
+                Statement::Phi { variable, incoming } => {
+                    assert!(
+                        variable.contains('_'),
+                        "SSA Phi definition is not versioned: {}",
+                        variable
+                    );
+
+                    for (predecessor, value) in incoming {
+                        assert!(
+                            *predecessor < cfg.blocks.len(),
+                            "SSA Phi predecessor block is invalid: {}",
+                            predecessor
+                        );
+
+                        // Only require versioning for values that are
+                        // actually known SSA definitions. Plain source
+                        // names such as loop conditions are allowed.
+                        if definitions.contains(value) {
+                            assert!(
+                                value.contains('_'),
+                                "SSA Phi incoming value is not versioned: {}",
+                                value
+                            );
+                        }
+                    }
+                }
+
+                Statement::If {
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    validate_phis(then_branch, cfg, definitions);
+
+                    if let Some(branch) = else_branch {
+                        validate_phis(branch, cfg, definitions);
+                    }
+                }
+
+                Statement::PerformUntil { body, .. }
+                | Statement::PerformVarying { body, .. }
+                | Statement::For { body, .. } => {
+                    validate_phis(body, cfg, definitions);
+                }
+
+                _ => {}
+            }
+        }
+    }
+
+    validate_phis(&program.statements, cfg, &definitions);
 }
 #[cfg(test)]
 mod use_def_tests {
