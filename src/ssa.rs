@@ -1097,7 +1097,11 @@ fn validate_ssa_structure(program: &Program, cfg: &ControlFlowGraph) {
 
                 Statement::Phi { variable, .. } => {
                     if variable.contains('_') {
-                        definitions.insert(variable.clone());
+                        assert!(
+                            definitions.insert(variable.clone()),
+                            "SSA Phi definition appears more than once: {}",
+                            variable
+                        );
                     }
                 }
 
@@ -1140,7 +1144,15 @@ fn validate_ssa_structure(program: &Program, cfg: &ControlFlowGraph) {
                         variable
                     );
 
+                    let mut phi_predecessors = HashSet::new();
+
                     for (predecessor, value) in incoming {
+                        assert!(
+                            phi_predecessors.insert(*predecessor),
+                            "SSA Phi contains duplicate predecessor block: {}",
+                            predecessor
+                        );
+
                         assert!(
                             *predecessor < cfg.blocks.len(),
                             "SSA Phi predecessor block is invalid: {}",
