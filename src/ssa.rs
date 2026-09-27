@@ -32,6 +32,7 @@ pub fn convert_to_ssa(program: &mut Program) {
     // into the current sequential IR.
     rename_dominator_tree(program, &cfg);
     validate_ssa_structure(program, &cfg);
+    validate_ssa_uses(program);
 }
 
 pub fn rename_variable(name: &str, version: usize) -> String {
@@ -1196,6 +1197,137 @@ fn validate_ssa_structure(program: &Program, cfg: &ControlFlowGraph) {
     }
 
     validate_phis(&program.statements, cfg, &definitions);
+}
+fn validate_ssa_uses(program: &Program) {
+    let mut definitions = HashSet::new();
+
+    fn collect_definitions(statements: &[Statement], definitions: &mut HashSet<String>) {
+        for statement in statements {
+            match statement {
+                Statement::Move { target, .. }
+                | Statement::Add { target, .. }
+                | Statement::Subtract { target, .. }
+                | Statement::Multiply { target, .. }
+                | Statement::Divide { target, .. }
+                | Statement::Compute { target, .. } => {
+                    if target.contains('_') {
+                        definitions.insert(target.clone());
+                    }
+                }
+
+                Statement::Phi { variable, .. } => {
+                    if variable.contains('_') {
+                        definitions.insert(variable.clone());
+                    }
+                }
+
+                Statement::If {
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    collect_definitions(then_branch, definitions);
+
+                    if let Some(branch) = else_branch {
+                        collect_definitions(branch, definitions);
+                    }
+                }
+
+                Statement::PerformUntil { body, .. }
+                | Statement::PerformVarying { body, .. }
+                | Statement::For { body, .. } => {
+                    collect_definitions(body, definitions);
+                }
+
+                _ => {}
+            }
+        }
+    }
+
+    fn validate_string_use(value: &str, definitions: &HashSet<String>) {
+        if value.contains('_') {
+            assert!(
+                definitions.contains(value),
+                "SSA use references undefined version: {}",
+                value
+            );
+        }
+    }
+
+    fn validate_condition_use(condition: &Condition, definitions: &HashSet<String>) {
+        validate_string_use(&condition.left, definitions);
+        validate_string_use(&condition.right, definitions);
+    }
+
+    fn validate_statements(statements: &[Statement], definitions: &HashSet<String>) {
+        for statement in statements {
+            match statement {
+                Statement::Move { source, .. } => {
+                    if let Source::Variable(name) = source {
+                        validate_string_use(name, definitions);
+                    }
+                }
+
+                Statement::Subtract { value, .. }
+                | Statement::Multiply { value, .. }
+                | Statement::Divide { value, .. } => {
+                    validate_string_use(value, definitions);
+                }
+
+                Statement::Compute { expr, .. } => {
+                    fn validate_expression(expr: &Expression, definitions: &HashSet<String>) {
+                        match expr {
+                            Expression::Variable(name) => {
+                                validate_string_use(name, definitions);
+                            }
+
+                            Expression::Binary { left, right, .. } => {
+                                validate_expression(left, definitions);
+                                validate_expression(right, definitions);
+                            }
+
+                            _ => {}
+                        }
+                    }
+
+                    validate_expression(expr, definitions);
+                }
+
+                Statement::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                } => {
+                    validate_condition_use(condition, definitions);
+                    validate_statements(then_branch, definitions);
+
+                    if let Some(branch) = else_branch {
+                        validate_statements(branch, definitions);
+                    }
+                }
+
+                Statement::PerformUntil { condition, body } => {
+                    validate_condition_use(condition, definitions);
+                    validate_statements(body, definitions);
+                }
+
+                Statement::PerformVarying { until, body, .. } => {
+                    validate_condition_use(until, definitions);
+                    validate_statements(body, definitions);
+                }
+
+                Statement::For { until, body, .. } => {
+                    validate_condition_use(until, definitions);
+                    validate_statements(body, definitions);
+                }
+
+                _ => {}
+            }
+        }
+    }
+
+    collect_definitions(&program.statements, &mut definitions);
+    validate_statements(&program.statements, &definitions);
 }
 #[cfg(test)]
 mod use_def_tests {
