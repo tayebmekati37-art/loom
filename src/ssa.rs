@@ -1330,6 +1330,25 @@ fn validate_ssa_uses(program: &Program) {
     validate_statements(&program.statements, &definitions);
 }
 #[cfg(test)]
+mod ssa_validation_tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "SSA use references undefined version")]
+    fn validator_rejects_undefined_versioned_use() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![Statement::Move {
+                source: Source::Variable("MISSING_99".to_string()),
+                target: "X_1".to_string(),
+            }],
+        };
+
+        validate_ssa_uses(&program);
+    }
+}
+#[cfg(test)]
 mod use_def_tests {
 
     use super::*;
