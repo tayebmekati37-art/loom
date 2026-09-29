@@ -1160,13 +1160,13 @@ fn validate_ssa_structure(program: &Program, cfg: &ControlFlowGraph) {
                             predecessor
                         );
 
-                        // Only require versioning for values that are
-                        // actually known SSA definitions. Plain source
-                        // names such as loop conditions are allowed.
-                        if definitions.contains(value) {
+                        // A Phi incoming value that is already written as
+                        // an SSA version must resolve to an existing SSA
+                        // definition. Ordinary source names remain valid.
+                        if value.contains('_') {
                             assert!(
-                                value.contains('_'),
-                                "SSA Phi incoming value is not versioned: {}",
+                                definitions.contains(value),
+                                "SSA Phi incoming value references undefined version: {}",
                                 value
                             );
                         }
