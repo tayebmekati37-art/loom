@@ -1347,6 +1347,23 @@ mod ssa_validation_tests {
 
         validate_ssa_uses(&program);
     }
+
+    #[test]
+    #[should_panic(expected = "SSA Phi incoming value references undefined version")]
+    fn validator_rejects_undefined_phi_incoming_version() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![Statement::Phi {
+                variable: "X_1".to_string(),
+                incoming: vec![(0, "X_99".to_string()), (1, "X_0".to_string())],
+            }],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+
+        validate_ssa_structure(&program, &cfg);
+    }
 }
 #[cfg(test)]
 mod use_def_tests {
