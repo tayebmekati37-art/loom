@@ -1364,6 +1364,38 @@ mod ssa_validation_tests {
 
         validate_ssa_structure(&program, &cfg);
     }
+    #[test]
+    fn validator_accepts_plain_phi_incoming_value() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![
+                Statement::If {
+                    condition: Condition {
+                        left: "A".to_string(),
+                        operator: "=".to_string(),
+                        right: "1".to_string(),
+                    },
+                    then_branch: vec![Statement::Move {
+                        source: Source::Literal(1),
+                        target: "SUM_0".to_string(),
+                    }],
+                    else_branch: Some(vec![Statement::Move {
+                        source: Source::Literal(2),
+                        target: "SUM_1".to_string(),
+                    }]),
+                },
+                Statement::Phi {
+                    variable: "SUM_2".to_string(),
+                    incoming: vec![(1, "SUM".to_string()), (2, "SUM_0".to_string())],
+                },
+            ],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+
+        validate_ssa_structure(&program, &cfg);
+    }
 }
 #[cfg(test)]
 mod use_def_tests {
