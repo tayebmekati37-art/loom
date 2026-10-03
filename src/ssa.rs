@@ -1171,6 +1171,60 @@ fn validate_ssa_structure(program: &Program, cfg: &ControlFlowGraph) {
                             );
                         }
                     }
+
+                    // A Phi must have one incoming value for every CFG
+                    // predecessor of the block where the Phi is placed.
+                    //
+                    // The current structured IR places IF-merge Phis
+                    // immediately after the corresponding IF. For this
+                    // validator milestone, identify the merge block by
+                    // matching the incoming predecessor set against CFG
+                    // predecessor sets.
+                    let mut phi_cfg_matches = Vec::new();
+
+                    for candidate_block in 0..cfg.blocks.len() {
+                        let predecessors: HashSet<usize> = cfg
+                            .blocks
+                            .iter()
+                            .filter(|candidate| candidate.successors.contains(&candidate_block))
+                            .map(|candidate| candidate.id)
+                            .collect();
+
+                        if predecessors.len() < 2 {
+                            continue;
+                        }
+
+                        let incoming_predecessors: HashSet<usize> =
+                            incoming.iter().map(|(block, _)| *block).collect();
+
+                        if incoming_predecessors
+                            .iter()
+                            .all(|predecessor| predecessors.contains(predecessor))
+                        {
+                            phi_cfg_matches.push((candidate_block, predecessors));
+                        }
+                    }
+
+                    if phi_cfg_matches.len() == 1 {
+                        let (_, expected_predecessors) = &phi_cfg_matches[0];
+
+                        let incoming_predecessors: HashSet<usize> =
+                            incoming.iter().map(|(block, _)| *block).collect();
+
+                        for predecessor in expected_predecessors {
+                            assert!(
+                                incoming_predecessors.contains(predecessor),
+                                "SSA Phi is missing predecessor block: {}",
+                                predecessor
+                            );
+                        }
+
+                        assert_eq!(
+                            incoming_predecessors.len(),
+                            expected_predecessors.len(),
+                            "SSA Phi predecessor set is incomplete"
+                        );
+                    }
                 }
 
                 Statement::If {
@@ -1397,6 +1451,40 @@ mod ssa_validation_tests {
 
         validate_ssa_structure(&program, &cfg);
     }
+    #[test]
+    #[should_panic(expected = "SSA Phi is missing predecessor block")]
+    fn validator_rejects_missing_phi_predecessor() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![
+                Statement::If {
+                    condition: Condition {
+                        left: "A".to_string(),
+                        operator: "=".to_string(),
+                        right: "1".to_string(),
+                    },
+                    then_branch: vec![Statement::Move {
+                        source: Source::Literal(1),
+                        target: "SUM_0".to_string(),
+                    }],
+                    else_branch: Some(vec![Statement::Move {
+                        source: Source::Literal(2),
+                        target: "SUM_1".to_string(),
+                    }]),
+                },
+                Statement::Phi {
+                    variable: "SUM_2".to_string(),
+                    incoming: vec![(1, "SUM_0".to_string())],
+                },
+            ],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+
+        validate_ssa_structure(&program, &cfg);
+    }
+
     #[test]
     fn validator_accepts_plain_phi_incoming_value() {
         let program = Program {
