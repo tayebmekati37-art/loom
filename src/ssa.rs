@@ -1131,100 +1131,56 @@ fn validate_ssa_structure(program: &Program, cfg: &ControlFlowGraph) {
 
     collect_definitions(&program.statements, &mut definitions);
 
-    fn validate_phis(
+    /*
+     * Map top-level Phi nodes to their actual CFG block.
+     *
+     * Important:
+     *
+     * Phi nodes do NOT consume CFG blocks.
+     *
+     * For an IF:
+     *
+     *     current block = IF control block
+     *     +1             = THEN block, if present
+     *     +1             = ELSE block, if present
+     *     current block  = merge block
+     *
+     * We deliberately DO NOT advance past the merge block here.
+     *
+     * This means:
+     *
+     *     IF
+     *     Phi
+     *
+     * maps the Phi to the merge block.
+     *
+     * The following normal statement then consumes that merge block.
+     *
+     * For a FOR:
+     *
+     *     current block     = loop header
+     *     +1                = loop body
+     *     +2                = loop exit
+     *
+     * A Phi immediately before FOR therefore maps to the loop header.
+     */
+    fn build_phi_cfg_block_map(
         statements: &[Statement],
         cfg: &ControlFlowGraph,
-        definitions: &HashSet<String>,
-    ) {
-        for statement in statements {
+    ) -> HashMap<usize, usize> {
+        let mut map = HashMap::new();
+        let mut cfg_block = 0usize;
+
+        for (program_index, statement) in statements.iter().enumerate() {
             match statement {
-                Statement::Phi { variable, incoming } => {
+                Statement::Phi { .. } => {
                     assert!(
-                        variable.contains('_'),
-                        "SSA Phi definition is not versioned: {}",
-                        variable
+                        cfg_block < cfg.blocks.len(),
+                        "SSA Phi could not be mapped to a CFG block: program index {}",
+                        program_index
                     );
 
-                    let mut phi_predecessors = HashSet::new();
-
-                    for (predecessor, value) in incoming {
-                        assert!(
-                            phi_predecessors.insert(*predecessor),
-                            "SSA Phi contains duplicate predecessor block: {}",
-                            predecessor
-                        );
-
-                        assert!(
-                            *predecessor < cfg.blocks.len(),
-                            "SSA Phi predecessor block is invalid: {}",
-                            predecessor
-                        );
-
-                        // A Phi incoming value that is already written as
-                        // an SSA version must resolve to an existing SSA
-                        // definition. Ordinary source names remain valid.
-                        if value.contains('_') {
-                            assert!(
-                                definitions.contains(value),
-                                "SSA Phi incoming value references undefined version: {}",
-                                value
-                            );
-                        }
-                    }
-
-                    // A Phi must have one incoming value for every CFG
-                    // predecessor of the block where the Phi is placed.
-                    //
-                    // The current structured IR places IF-merge Phis
-                    // immediately after the corresponding IF. For this
-                    // validator milestone, identify the merge block by
-                    // matching the incoming predecessor set against CFG
-                    // predecessor sets.
-                    let mut phi_cfg_matches = Vec::new();
-
-                    for candidate_block in 0..cfg.blocks.len() {
-                        let predecessors: HashSet<usize> = cfg
-                            .blocks
-                            .iter()
-                            .filter(|candidate| candidate.successors.contains(&candidate_block))
-                            .map(|candidate| candidate.id)
-                            .collect();
-
-                        if predecessors.len() < 2 {
-                            continue;
-                        }
-
-                        let incoming_predecessors: HashSet<usize> =
-                            incoming.iter().map(|(block, _)| *block).collect();
-
-                        if incoming_predecessors
-                            .iter()
-                            .all(|predecessor| predecessors.contains(predecessor))
-                        {
-                            phi_cfg_matches.push((candidate_block, predecessors));
-                        }
-                    }
-
-                    if phi_cfg_matches.len() == 1 {
-                        let (_, expected_predecessors) = &phi_cfg_matches[0];
-
-                        let incoming_predecessors: HashSet<usize> =
-                            incoming.iter().map(|(block, _)| *block).collect();
-
-                        for predecessor in expected_predecessors {
-                            assert!(
-                                incoming_predecessors.contains(predecessor),
-                                "SSA Phi is missing predecessor block: {}",
-                                predecessor
-                            );
-                        }
-
-                        assert_eq!(
-                            incoming_predecessors.len(),
-                            expected_predecessors.len(),
-                            "SSA Phi predecessor set is incomplete"
-                        );
-                    }
+                    map.insert(program_index, cfg_block);
                 }
 
                 Statement::If {
@@ -1232,17 +1188,200 @@ fn validate_ssa_structure(program: &Program, cfg: &ControlFlowGraph) {
                     else_branch,
                     ..
                 } => {
-                    validate_phis(then_branch, cfg, definitions);
+                    // Current block is the IF control block.
+                    assert!(
+                        cfg_block < cfg.blocks.len(),
+                        "SSA IF could not be mapped to a CFG block"
+                    );
+
+                    cfg_block += 1;
+
+                    // THEN branch.
+                    if !then_branch.is_empty() {
+                        assert!(
+                            cfg_block < cfg.blocks.len(),
+                            "SSA THEN branch could not be mapped to a CFG block"
+                        );
+
+                        cfg_block += 1;
+                    }
+
+                    // ELSE branch.
+                    if let Some(branch) = else_branch {
+                        if !branch.is_empty() {
+                            assert!(
+                                cfg_block < cfg.blocks.len(),
+                                "SSA ELSE branch could not be mapped to a CFG block"
+                            );
+
+                            cfg_block += 1;
+                        }
+                    }
+
+                    /*
+                     * IMPORTANT:
+                     *
+                     * cfg_block is now the merge block.
+                     *
+                     * Do NOT increment it here.
+                     *
+                     * A Phi immediately following this IF must map
+                     * to this block.
+                     */
+                }
+
+                Statement::For { .. } => {
+                    // Phi before FOR belongs to the loop header.
+                    assert!(
+                        cfg_block < cfg.blocks.len(),
+                        "SSA FOR could not be mapped to a CFG block"
+                    );
+
+                    // Header + body + exit.
+                    cfg_block += 3;
+                }
+
+                _ => {
+                    assert!(
+                        cfg_block < cfg.blocks.len(),
+                        "SSA statement could not be mapped to a CFG block"
+                    );
+
+                    cfg_block += 1;
+                }
+            }
+        }
+
+        map
+    }
+
+    let phi_cfg_blocks = build_phi_cfg_block_map(&program.statements, cfg);
+
+    fn validate_phi(
+        variable: &str,
+        incoming: &[(usize, String)],
+        cfg: &ControlFlowGraph,
+        definitions: &HashSet<String>,
+        phi_cfg_block: usize,
+    ) {
+        assert!(
+            variable.contains('_'),
+            "SSA Phi definition is not versioned: {}",
+            variable
+        );
+
+        let mut phi_predecessors = HashSet::new();
+
+        for (predecessor, value) in incoming {
+            assert!(
+                phi_predecessors.insert(*predecessor),
+                "SSA Phi contains duplicate predecessor block: {}",
+                predecessor
+            );
+
+            assert!(
+                *predecessor < cfg.blocks.len(),
+                "SSA Phi predecessor block is invalid: {}",
+                predecessor
+            );
+
+            if value.contains('_') {
+                assert!(
+                    definitions.contains(value),
+                    "SSA Phi incoming value references undefined version: {}",
+                    value
+                );
+            }
+        }
+
+        /*
+         * Determine the exact CFG predecessor set for the Phi's block.
+         */
+        let expected_predecessors: HashSet<usize> = cfg
+            .blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, candidate)| candidate.successors.contains(&phi_cfg_block))
+            .map(|(id, _)| id)
+            .collect();
+
+        /*
+         * Only a CFG block with multiple predecessors requires
+         * predecessor completeness.
+         */
+        if expected_predecessors.len() < 2 {
+            return;
+        }
+
+        let actual_predecessors: HashSet<usize> = incoming
+            .iter()
+            .map(|(predecessor, _)| *predecessor)
+            .collect();
+
+        /*
+         * Missing predecessor.
+         */
+        for predecessor in expected_predecessors.difference(&actual_predecessors) {
+            panic!("SSA Phi is missing predecessor block: {}", predecessor);
+        }
+
+        /*
+         * Extra in-range block that is not actually a predecessor.
+         */
+        for predecessor in actual_predecessors.difference(&expected_predecessors) {
+            panic!("SSA Phi contains non-predecessor block: {}", predecessor);
+        }
+    }
+
+    fn validate_phis(
+        statements: &[Statement],
+        cfg: &ControlFlowGraph,
+        definitions: &HashSet<String>,
+        phi_cfg_blocks: &HashMap<usize, usize>,
+        top_level: bool,
+    ) {
+        for (index, statement) in statements.iter().enumerate() {
+            match statement {
+                Statement::Phi { variable, incoming } => {
+                    /*
+                     * Current Phi insertion is top-level, so every
+                     * top-level Phi must have a concrete CFG mapping.
+                     */
+                    let phi_cfg_block = if top_level {
+                        *phi_cfg_blocks.get(&index).unwrap_or_else(|| {
+                            panic!("SSA Phi has no CFG block mapping: program index {}", index)
+                        })
+                    } else {
+                        /*
+                         * Nested Phi nodes are not currently inserted
+                         * by insert_phi_nodes(). Validate their local
+                         * structural invariants, but do not invent a
+                         * CFG block mapping.
+                         */
+                        validate_phi(variable, incoming, cfg, definitions, 0);
+
+                        continue;
+                    };
+
+                    validate_phi(variable, incoming, cfg, definitions, phi_cfg_block);
+                }
+
+                Statement::If {
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    validate_phis(then_branch, cfg, definitions, phi_cfg_blocks, false);
 
                     if let Some(branch) = else_branch {
-                        validate_phis(branch, cfg, definitions);
+                        validate_phis(branch, cfg, definitions, phi_cfg_blocks, false);
                     }
                 }
 
                 Statement::PerformUntil { body, .. }
                 | Statement::PerformVarying { body, .. }
                 | Statement::For { body, .. } => {
-                    validate_phis(body, cfg, definitions);
+                    validate_phis(body, cfg, definitions, phi_cfg_blocks, false);
                 }
 
                 _ => {}
@@ -1250,7 +1389,13 @@ fn validate_ssa_structure(program: &Program, cfg: &ControlFlowGraph) {
         }
     }
 
-    validate_phis(&program.statements, cfg, &definitions);
+    validate_phis(
+        &program.statements,
+        cfg,
+        &definitions,
+        &phi_cfg_blocks,
+        true,
+    );
 }
 fn validate_ssa_uses(program: &Program) {
     let mut definitions = HashSet::new();
