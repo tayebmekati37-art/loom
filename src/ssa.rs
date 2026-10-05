@@ -33,6 +33,7 @@ pub fn convert_to_ssa(program: &mut Program) {
     rename_dominator_tree(program, &cfg);
     validate_ssa_structure(program, &cfg);
     validate_ssa_uses(program);
+    validate_phi_incoming_edges(program, &cfg);
 }
 
 pub fn rename_variable(name: &str, version: usize) -> String {
@@ -1397,6 +1398,301 @@ fn validate_ssa_structure(program: &Program, cfg: &ControlFlowGraph) {
         true,
     );
 }
+fn validate_phi_incoming_edges(program: &Program, cfg: &ControlFlowGraph) {
+    let mut definitions: HashMap<String, usize> = HashMap::new();
+
+    fn collect_definitions(
+        statements: &[Statement],
+        definitions: &mut HashMap<String, usize>,
+        index: &mut usize,
+    ) {
+        for statement in statements {
+            let current_index = *index;
+            *index += 1;
+
+            match statement {
+                Statement::Move { target, .. }
+                | Statement::Add { target, .. }
+                | Statement::Subtract { target, .. }
+                | Statement::Multiply { target, .. }
+                | Statement::Divide { target, .. }
+                | Statement::Compute { target, .. } => {
+                    if target.contains('_') {
+                        definitions.insert(target.clone(), current_index);
+                    }
+                }
+
+                Statement::If {
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    collect_definitions(then_branch, definitions, index);
+
+                    if let Some(branch) = else_branch {
+                        collect_definitions(branch, definitions, index);
+                    }
+                }
+
+                Statement::PerformUntil { body, .. }
+                | Statement::PerformVarying { body, .. }
+                | Statement::For { body, .. } => {
+                    collect_definitions(body, definitions, index);
+                }
+
+                Statement::Phi { variable, .. } => {
+                    if variable.contains('_') {
+                        definitions.insert(variable.clone(), current_index);
+                    }
+                }
+
+                _ => {}
+            }
+        }
+    }
+
+    collect_definitions(&program.statements, &mut definitions, &mut 0);
+
+    fn statement_index_to_cfg_block(
+        statements: &[Statement],
+        target_index: usize,
+        cfg_block: &mut usize,
+        current_index: &mut usize,
+    ) -> Option<usize> {
+        for statement in statements {
+            let statement_index = *current_index;
+            *current_index += 1;
+
+            if statement_index == target_index {
+                return Some(*cfg_block);
+            }
+
+            match statement {
+                Statement::If {
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    *cfg_block += 1;
+
+                    if let Some(block) = statement_index_to_cfg_block(
+                        then_branch,
+                        target_index,
+                        cfg_block,
+                        current_index,
+                    ) {
+                        return Some(block);
+                    }
+
+                    if let Some(branch) = else_branch {
+                        if let Some(block) = statement_index_to_cfg_block(
+                            branch,
+                            target_index,
+                            cfg_block,
+                            current_index,
+                        ) {
+                            return Some(block);
+                        }
+                    }
+                }
+
+                Statement::For { body, .. } => {
+                    *cfg_block += 1;
+
+                    if let Some(block) =
+                        statement_index_to_cfg_block(body, target_index, cfg_block, current_index)
+                    {
+                        return Some(block);
+                    }
+
+                    *cfg_block += 2;
+                }
+
+                Statement::PerformUntil { body, .. } | Statement::PerformVarying { body, .. } => {
+                    *cfg_block += 1;
+
+                    if let Some(block) =
+                        statement_index_to_cfg_block(body, target_index, cfg_block, current_index)
+                    {
+                        return Some(block);
+                    }
+
+                    *cfg_block += 1;
+                }
+
+                Statement::Phi { .. } => {}
+
+                _ => {
+                    *cfg_block += 1;
+                }
+            }
+        }
+
+        None
+    }
+
+    fn validate_phis(
+        statements: &[Statement],
+        cfg: &ControlFlowGraph,
+        definitions: &HashMap<String, usize>,
+        statement_index: &mut usize,
+        cfg_block: &mut usize,
+        program: &[Statement],
+    ) {
+        for statement in statements {
+            *statement_index += 1;
+
+            match statement {
+                Statement::Phi { incoming, .. } => {
+                    let phi_cfg_block = *cfg_block;
+
+                    assert!(
+                        phi_cfg_block < cfg.blocks.len(),
+                        "SSA Phi is mapped outside CFG: {}",
+                        phi_cfg_block
+                    );
+
+                    let expected_predecessors: HashSet<usize> = cfg
+                        .blocks
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, block)| block.successors.contains(&phi_cfg_block))
+                        .map(|(id, _)| id)
+                        .collect();
+
+                    for (predecessor, value) in incoming {
+                        if !value.contains('_') {
+                            continue;
+                        }
+
+                        let definition_index =
+                            definitions.get(value).copied().unwrap_or_else(|| {
+                                panic!(
+                                    "SSA Phi incoming value references undefined version: {}",
+                                    value
+                                )
+                            });
+
+                        let mut definition_cfg_block = 0;
+                        let mut definition_index_cursor = 0;
+
+                        let definition_block = statement_index_to_cfg_block(
+                            program,
+                            definition_index,
+                            &mut definition_cfg_block,
+                            &mut definition_index_cursor,
+                        )
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "SSA Phi incoming value definition cannot be mapped: {}",
+                                value
+                            )
+                        });
+
+                        // The definition must dominate the predecessor edge.
+                        let mut dominated = definition_block == *predecessor;
+
+                        if !dominated && definition_block < cfg.blocks.len() {
+                            let mut current = *predecessor;
+
+                            loop {
+                                let idom = cfg.blocks[current].idom;
+
+                                match idom {
+                                    Some(parent) if parent == definition_block => {
+                                        dominated = true;
+                                        break;
+                                    }
+
+                                    Some(parent) if parent != current => {
+                                        current = parent;
+                                    }
+
+                                    _ => break,
+                                }
+                            }
+                        }
+
+                        assert!(
+                            dominated,
+                            "SSA Phi incoming value is not available on predecessor edge: {} from block {}",
+                            value,
+                            predecessor
+                        );
+
+                        if expected_predecessors.len() >= 2 {
+                            assert!(
+                                expected_predecessors.contains(predecessor),
+                                "SSA Phi incoming predecessor is not a CFG predecessor: {}",
+                                predecessor
+                            );
+                        }
+                    }
+                }
+
+                Statement::If {
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    *cfg_block += 1;
+
+                    validate_phis(
+                        then_branch,
+                        cfg,
+                        definitions,
+                        statement_index,
+                        cfg_block,
+                        program,
+                    );
+
+                    if let Some(branch) = else_branch {
+                        validate_phis(
+                            branch,
+                            cfg,
+                            definitions,
+                            statement_index,
+                            cfg_block,
+                            program,
+                        );
+                    }
+                }
+
+                Statement::For { body, .. } => {
+                    *cfg_block += 1;
+
+                    validate_phis(body, cfg, definitions, statement_index, cfg_block, program);
+
+                    *cfg_block += 2;
+                }
+
+                Statement::PerformUntil { body, .. } | Statement::PerformVarying { body, .. } => {
+                    *cfg_block += 1;
+
+                    validate_phis(body, cfg, definitions, statement_index, cfg_block, program);
+
+                    *cfg_block += 1;
+                }
+
+                _ => {
+                    *cfg_block += 1;
+                }
+            }
+        }
+    }
+
+    let mut statement_index = 0;
+    let mut cfg_block = 0;
+
+    validate_phis(
+        &program.statements,
+        cfg,
+        &definitions,
+        &mut statement_index,
+        &mut cfg_block,
+        &program.statements,
+    );
+}
 fn validate_ssa_uses(program: &Program) {
     let mut definitions = HashSet::new();
 
@@ -1530,6 +1826,75 @@ fn validate_ssa_uses(program: &Program) {
 }
 #[cfg(test)]
 mod ssa_validation_tests {
+    #[test]
+    fn validator_accepts_phi_value_defined_on_matching_predecessor() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![
+                Statement::If {
+                    condition: Condition {
+                        left: "A".to_string(),
+                        operator: "=".to_string(),
+                        right: "1".to_string(),
+                    },
+                    then_branch: vec![Statement::Move {
+                        source: Source::Literal(1),
+                        target: "X_0".to_string(),
+                    }],
+                    else_branch: Some(vec![Statement::Move {
+                        source: Source::Literal(2),
+                        target: "X_1".to_string(),
+                    }]),
+                },
+                Statement::Phi {
+                    variable: "X_2".to_string(),
+                    incoming: vec![(1, "X_0".to_string()), (2, "X_1".to_string())],
+                },
+            ],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+
+        validate_ssa_structure(&program, &cfg);
+        validate_phi_incoming_edges(&program, &cfg);
+    }
+
+    #[test]
+    #[should_panic(expected = "SSA Phi incoming value is not available on predecessor edge")]
+    fn validator_rejects_phi_value_from_wrong_branch() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![
+                Statement::If {
+                    condition: Condition {
+                        left: "A".to_string(),
+                        operator: "=".to_string(),
+                        right: "1".to_string(),
+                    },
+                    then_branch: vec![Statement::Move {
+                        source: Source::Literal(1),
+                        target: "X_0".to_string(),
+                    }],
+                    else_branch: Some(vec![Statement::Move {
+                        source: Source::Literal(2),
+                        target: "Y_0".to_string(),
+                    }]),
+                },
+                Statement::Phi {
+                    variable: "X_1".to_string(),
+                    incoming: vec![(1, "Y_0".to_string()), (2, "X_0".to_string())],
+                },
+            ],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+
+        validate_ssa_structure(&program, &cfg);
+        validate_phi_incoming_edges(&program, &cfg);
+    }
+
     use super::*;
 
     #[test]
