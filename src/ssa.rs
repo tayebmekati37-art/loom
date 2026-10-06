@@ -34,6 +34,7 @@ pub fn convert_to_ssa(program: &mut Program) {
     validate_ssa_structure(program, &cfg);
     validate_ssa_uses(program);
     validate_phi_incoming_edges(program, &cfg);
+    validate_phi_placement(program, &cfg);
 }
 
 pub fn rename_variable(name: &str, version: usize) -> String {
@@ -1398,6 +1399,77 @@ fn validate_ssa_structure(program: &Program, cfg: &ControlFlowGraph) {
         true,
     );
 }
+fn validate_phi_placement(program: &Program, cfg: &ControlFlowGraph) {
+    fn validate_statements(
+        statements: &[Statement],
+        cfg: &ControlFlowGraph,
+        cfg_block: &mut usize,
+    ) {
+        for statement in statements {
+            match statement {
+                Statement::Phi { variable, .. } => {
+                    assert!(
+                        *cfg_block < cfg.blocks.len(),
+                        "SSA Phi is mapped outside CFG: {}",
+                        cfg_block
+                    );
+
+                    let predecessor_count = cfg
+                        .blocks
+                        .iter()
+                        .filter(|block| block.successors.contains(cfg_block))
+                        .count();
+
+                    assert!(
+                        predecessor_count >= 2,
+                        "SSA Phi is not placed at a CFG merge point: {} in block {}",
+                        variable,
+                        cfg_block
+                    );
+                }
+
+                Statement::If {
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    *cfg_block += 1;
+
+                    validate_statements(then_branch, cfg, cfg_block);
+
+                    if let Some(branch) = else_branch {
+                        validate_statements(branch, cfg, cfg_block);
+                    }
+
+                    // Leave cfg_block on the merge block so a Phi
+                    // immediately following the IF maps to the merge.
+                }
+
+                Statement::For { body, .. } => {
+                    validate_statements(body, cfg, cfg_block);
+
+                    *cfg_block += 3;
+                }
+
+                Statement::PerformUntil { body, .. } | Statement::PerformVarying { body, .. } => {
+                    *cfg_block += 1;
+
+                    validate_statements(body, cfg, cfg_block);
+
+                    *cfg_block += 1;
+                }
+
+                _ => {
+                    *cfg_block += 1;
+                }
+            }
+        }
+    }
+
+    let mut cfg_block = 0;
+
+    validate_statements(&program.statements, cfg, &mut cfg_block);
+}
 fn validate_phi_incoming_edges(program: &Program, cfg: &ControlFlowGraph) {
     let mut definitions: HashMap<String, usize> = HashMap::new();
 
@@ -1823,6 +1895,61 @@ fn validate_ssa_uses(program: &Program) {
 
     collect_definitions(&program.statements, &mut definitions);
     validate_statements(&program.statements, &definitions);
+}
+#[test]
+#[should_panic(expected = "SSA Phi is mapped outside CFG")]
+fn validator_rejects_phi_outside_merge_block() {
+    let program = Program {
+        variables: Vec::new(),
+        paragraphs: Vec::new(),
+        statements: vec![
+            Statement::Move {
+                source: Source::Literal(1),
+                target: "X_0".to_string(),
+            },
+            Statement::Phi {
+                variable: "X_1".to_string(),
+                incoming: Vec::new(),
+            },
+        ],
+    };
+
+    let cfg = ControlFlowGraph::build(&program);
+
+    validate_phi_placement(&program, &cfg);
+}
+
+#[test]
+fn validator_accepts_phi_at_branch_merge_block() {
+    let program = Program {
+        variables: Vec::new(),
+        paragraphs: Vec::new(),
+        statements: vec![
+            Statement::If {
+                condition: Condition {
+                    left: "A".to_string(),
+                    operator: "=".to_string(),
+                    right: "1".to_string(),
+                },
+                then_branch: vec![Statement::Move {
+                    source: Source::Literal(1),
+                    target: "X_0".to_string(),
+                }],
+                else_branch: Some(vec![Statement::Move {
+                    source: Source::Literal(2),
+                    target: "X_1".to_string(),
+                }]),
+            },
+            Statement::Phi {
+                variable: "X_2".to_string(),
+                incoming: vec![(1, "X_0".to_string()), (2, "X_1".to_string())],
+            },
+        ],
+    };
+
+    let cfg = ControlFlowGraph::build(&program);
+
+    validate_phi_placement(&program, &cfg);
 }
 #[cfg(test)]
 mod ssa_validation_tests {
