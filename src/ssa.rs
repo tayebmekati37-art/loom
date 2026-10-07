@@ -1954,6 +1954,41 @@ fn validator_accepts_phi_at_branch_merge_block() {
 #[cfg(test)]
 mod ssa_validation_tests {
     #[test]
+    fn validator_accepts_phi_at_loop_header() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![
+                Statement::Move {
+                    source: Source::Literal(0),
+                    target: "A_0".to_string(),
+                },
+                Statement::Phi {
+                    variable: "X_1".to_string(),
+                    incoming: Vec::new(),
+                },
+                Statement::For {
+                    variable: "I".to_string(),
+                    start: Expression::Variable("I".to_string()),
+                    step: Expression::Variable("I".to_string()),
+                    until: Condition {
+                        left: "I".to_string(),
+                        operator: ">=".to_string(),
+                        right: "10".to_string(),
+                    },
+                    body: vec![Statement::Move {
+                        source: Source::Literal(1),
+                        target: "X".to_string(),
+                    }],
+                },
+            ],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+
+        validate_phi_placement(&program, &cfg);
+    }
+    #[test]
     fn validator_accepts_phi_value_defined_on_matching_predecessor() {
         let program = Program {
             variables: Vec::new(),
