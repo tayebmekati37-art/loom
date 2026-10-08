@@ -2060,6 +2060,146 @@ mod ssa_validation_tests {
     use super::*;
 
     #[test]
+    fn validator_accepts_loop_phi_edge_values() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![
+                Statement::Move {
+                    source: Source::Literal(0),
+                    target: "A_0".to_string(),
+                },
+                Statement::Phi {
+                    variable: "X_1".to_string(),
+                    incoming: Vec::new(),
+                },
+                Statement::For {
+                    variable: "I".to_string(),
+                    start: Expression::Variable("I".to_string()),
+                    step: Expression::Variable("I".to_string()),
+                    until: Condition {
+                        left: "I".to_string(),
+                        operator: ">=".to_string(),
+                        right: "10".to_string(),
+                    },
+                    body: vec![Statement::Move {
+                        source: Source::Literal(1),
+                        target: "X_2".to_string(),
+                    }],
+                },
+            ],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+        let header = 1usize;
+
+        let predecessors: Vec<usize> = cfg
+            .blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, block)| block.successors.contains(&header))
+            .map(|(id, _)| id)
+            .collect();
+
+        assert_eq!(
+            predecessors.len(),
+            2,
+            "Test requires a loop header with preheader and back-edge predecessors"
+        );
+
+        let preheader = *predecessors
+            .iter()
+            .find(|&&id| id != 2)
+            .expect("Could not identify loop preheader");
+
+        let back_edge = *predecessors
+            .iter()
+            .find(|&&id| id == 2)
+            .expect("Could not identify loop back edge");
+
+        let mut program = program;
+
+        if let Statement::Phi { incoming, .. } = &mut program.statements[1] {
+            *incoming = vec![
+                (preheader, "A_0".to_string()),
+                (back_edge, "X_2".to_string()),
+            ];
+        }
+
+        validate_phi_incoming_edges(&program, &cfg);
+    }
+
+    #[test]
+    #[should_panic(expected = "SSA Phi incoming value is not available on predecessor edge")]
+    fn validator_rejects_loop_body_value_on_preheader_edge() {
+        let program = Program {
+            variables: Vec::new(),
+            paragraphs: Vec::new(),
+            statements: vec![
+                Statement::Move {
+                    source: Source::Literal(0),
+                    target: "A_0".to_string(),
+                },
+                Statement::Phi {
+                    variable: "X_1".to_string(),
+                    incoming: Vec::new(),
+                },
+                Statement::For {
+                    variable: "I".to_string(),
+                    start: Expression::Variable("I".to_string()),
+                    step: Expression::Variable("I".to_string()),
+                    until: Condition {
+                        left: "I".to_string(),
+                        operator: ">=".to_string(),
+                        right: "10".to_string(),
+                    },
+                    body: vec![Statement::Move {
+                        source: Source::Literal(1),
+                        target: "X_2".to_string(),
+                    }],
+                },
+            ],
+        };
+
+        let cfg = ControlFlowGraph::build(&program);
+        let header = 1usize;
+
+        let predecessors: Vec<usize> = cfg
+            .blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, block)| block.successors.contains(&header))
+            .map(|(id, _)| id)
+            .collect();
+
+        assert_eq!(
+            predecessors.len(),
+            2,
+            "Test requires a loop header with preheader and back-edge predecessors"
+        );
+
+        let preheader = *predecessors
+            .iter()
+            .find(|&&id| id != 2)
+            .expect("Could not identify loop preheader");
+
+        let back_edge = *predecessors
+            .iter()
+            .find(|&&id| id == 2)
+            .expect("Could not identify loop back edge");
+
+        let mut program = program;
+
+        if let Statement::Phi { incoming, .. } = &mut program.statements[1] {
+            *incoming = vec![
+                (preheader, "X_2".to_string()),
+                (back_edge, "A_0".to_string()),
+            ];
+        }
+
+        validate_phi_incoming_edges(&program, &cfg);
+    }
+    #[test]
     #[should_panic(expected = "SSA use references undefined version")]
     fn validator_rejects_undefined_versioned_use() {
         let program = Program {
