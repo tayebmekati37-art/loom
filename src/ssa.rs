@@ -2774,6 +2774,97 @@ mod v412_regression_tests {
 
     #[test]
     fn v412_loop_carried_variable_gets_phi_and_versions() {
+        #[test]
+        fn v441_real_loop_phi_renaming_is_correct() {
+            let mut program = Program {
+                variables: Vec::new(),
+                paragraphs: Vec::new(),
+                statements: vec![
+                    Statement::Move {
+                        source: Source::Literal(0),
+                        target: "X".to_string(),
+                    },
+                    Statement::For {
+                        variable: "I".to_string(),
+                        start: Expression::Variable("I".to_string()),
+                        step: Expression::Variable("I".to_string()),
+                        body: vec![Statement::Move {
+                            source: Source::Variable("X".to_string()),
+                            target: "X".to_string(),
+                        }],
+                        until: Condition {
+                            left: "I".to_string(),
+                            operator: ">=".to_string(),
+                            right: "10".to_string(),
+                        },
+                    },
+                    Statement::Compute {
+                        target: "Y".to_string(),
+                        expr: Expression::Variable("X".to_string()),
+                    },
+                ],
+            };
+
+            convert_to_ssa(&mut program);
+
+            let phi = program
+                .statements
+                .iter()
+                .find_map(|statement| match statement {
+                    Statement::Phi { variable, incoming }
+                        if SsaRenameState::base_name(variable) == "X" =>
+                    {
+                        Some((variable.clone(), incoming.clone()))
+                    }
+                    _ => None,
+                })
+                .expect("Expected loop-header Phi for X");
+
+            let phi_variable = phi.0;
+            let incoming = phi.1;
+
+            assert!(
+                phi_variable.starts_with("X_"),
+                "Loop-header Phi must define a versioned X: {:?}",
+                phi_variable
+            );
+
+            assert_eq!(
+                incoming.len(),
+                2,
+                "Loop-header Phi must have exactly two incoming edges: {:?}",
+                incoming
+            );
+
+            let incoming_values: Vec<String> =
+                incoming.iter().map(|(_, value)| value.clone()).collect();
+
+            assert!(
+                incoming_values.iter().any(|value| value == "X_0"),
+                "Loop Phi must receive the preheader X definition X_0: {:?}",
+                incoming
+            );
+
+            assert!(
+                incoming_values.iter().any(|value| value.starts_with("X_")),
+                "Loop Phi must receive a versioned loop-carried value: {:?}",
+                incoming
+            );
+
+            let debug = format!("{:#?}", program);
+
+            assert!(
+                debug.contains("Y_0"),
+                "Final use of X after the loop must produce a versioned Y: {}",
+                debug
+            );
+
+            assert!(
+                !debug.contains("target: \"X\""),
+                "SSA output must not leave an unversioned X definition: {}",
+                debug
+            );
+        }
         let mut program = Program {
             variables: Vec::new(),
             paragraphs: Vec::new(),
