@@ -409,3 +409,72 @@ fn v415_phi_incomings_match_cfg_predecessors() {
         cfg
     );
 }
+
+#[test]
+fn v442_repeated_statement_kinds_keep_loop_phi_edges_correct() {
+    let mut program = Program {
+        variables: Vec::new(),
+        paragraphs: Vec::new(),
+        statements: vec![
+            Statement::Move {
+                source: loom::ir::Source::Literal(0),
+                target: "COUNT".to_string(),
+            },
+            Statement::Compute {
+                target: "OTHER".to_string(),
+                expr: add_expr("COUNT", 2),
+            },
+            Statement::For {
+                variable: "I".to_string(),
+                start: int_expr(0),
+                step: int_expr(1),
+                until: loop_condition("I", "<", 5),
+                body: vec![
+                    Statement::Compute {
+                        target: "COUNT".to_string(),
+                        expr: add_expr("COUNT", 1),
+                    },
+                    Statement::Compute {
+                        target: "OTHER".to_string(),
+                        expr: add_expr("OTHER", 1),
+                    },
+                    Statement::Compute {
+                        target: "COUNT".to_string(),
+                        expr: add_expr("COUNT", 2),
+                    },
+                ],
+            },
+        ],
+    };
+
+    convert_to_ssa(&mut program);
+
+    let count_phi = program.statements.iter().find_map(|statement| {
+        match statement {
+            Statement::Phi { variable, incoming } if variable.starts_with("COUNT_") => {
+                Some((variable, incoming))
+            }
+            _ => None,
+        }
+    });
+
+    let (phi_variable, incoming) =
+        count_phi.expect("Expected a loop-carried COUNT Phi");
+
+    assert!(
+        incoming.iter().any(|(_, value)| value.starts_with("COUNT_")),
+        "COUNT Phi has no COUNT incoming versions. Phi: {phi_variable}, Program:\n{program:#?}"
+    );
+
+    assert!(
+        incoming.iter().all(|(_, value)| {
+            value.starts_with("COUNT_")
+        }),
+        "COUNT Phi contains an incoming value from another variable. Phi: {phi_variable}, Program:\n{program:#?}"
+    );
+
+    assert!(
+        incoming.len() >= 2,
+        "Expected preheader and loop-backedge incoming values. Phi: {phi_variable}, incoming: {incoming:#?}"
+    );
+}
