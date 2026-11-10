@@ -454,46 +454,41 @@ pub fn insert_phi_nodes(program: &Program, cfg: &ControlFlowGraph) -> Program {
         let mut position = None;
 
         let mut current_cfg_block = 0usize;
+        let mut in_sequential_block = false;
 
         for index in 0..program.statements.len() {
             match &program.statements[index] {
                 Statement::For { .. } => {
-                    // A loop header is exactly the CFG block represented
-                    // by this structured For statement.
+                    if in_sequential_block {
+                        current_cfg_block += 1;
+                        in_sequential_block = false;
+                    }
                     if block_id == current_cfg_block {
-                        // Only treat self-dominance-frontier blocks as
-                        // loop headers for this milestone.
                         if cfg.blocks[block_id].dominance_frontier.contains(&block_id) {
                             position = Some(index);
                             break;
                         }
                     }
-
-                    // For consumes three CFG blocks:
-                    // header, body, exit.
                     current_cfg_block += 3;
                 }
-
                 Statement::If { .. } => {
+                    if in_sequential_block {
+                        current_cfg_block += 1;
+                        in_sequential_block = false;
+                    }
                     if predecessor_count >= 2 {
                         if index + 1 < program.statements.len() {
                             position = Some(index + 1);
                         } else {
                             position = Some(program.statements.len());
                         }
-
                         break;
                     }
-
                     current_cfg_block += 1;
                 }
-
-                _ => {
-                    current_cfg_block += 1;
-                }
+                _ => { in_sequential_block = true; }
             }
         }
-
         if let Some(position) = position {
             insertion_points.push((position, variables));
         }
@@ -1405,7 +1400,26 @@ fn validate_phi_placement(program: &Program, cfg: &ControlFlowGraph) {
         cfg: &ControlFlowGraph,
         cfg_block: &mut usize,
     ) {
+        let mut pending_seq = false;
+
         for statement in statements {
+            let needs_flush = matches!(
+                statement,
+                Statement::Phi { .. }
+                    | Statement::If { .. }
+                    | Statement::For { .. }
+                    | Statement::Perform { .. }
+                    | Statement::PerformUntil { .. }
+                    | Statement::PerformVarying { .. }
+                    | Statement::Call { .. }
+                    | Statement::StopRun
+            );
+
+            if needs_flush && pending_seq {
+                *cfg_block += 1;
+                pending_seq = false;
+            }
+
             match statement {
                 Statement::Phi { variable, .. } => {
                     assert!(
@@ -1413,13 +1427,11 @@ fn validate_phi_placement(program: &Program, cfg: &ControlFlowGraph) {
                         "SSA Phi is mapped outside CFG: {}",
                         cfg_block
                     );
-
                     let predecessor_count = cfg
                         .blocks
                         .iter()
                         .filter(|block| block.successors.contains(cfg_block))
                         .count();
-
                     assert!(
                         predecessor_count >= 2,
                         "SSA Phi is not placed at a CFG merge point: {} in block {}",
@@ -1434,35 +1446,31 @@ fn validate_phi_placement(program: &Program, cfg: &ControlFlowGraph) {
                     ..
                 } => {
                     *cfg_block += 1;
-
                     validate_statements(then_branch, cfg, cfg_block);
-
                     if let Some(branch) = else_branch {
                         validate_statements(branch, cfg, cfg_block);
                     }
-
-                    // Leave cfg_block on the merge block so a Phi
-                    // immediately following the IF maps to the merge.
+                    pending_seq = false;
                 }
 
-                Statement::For { body, .. } => {
-                    validate_statements(body, cfg, cfg_block);
-
+                Statement::For { .. } => {
+                    // For body is one CFG block per split_into_blocks.
+                    // No top-level Phis are inserted inside For bodies.
                     *cfg_block += 3;
+                    pending_seq = false;
                 }
 
-                Statement::PerformUntil { body, .. } | Statement::PerformVarying { body, .. } => {
+                Statement::PerformUntil { .. } | Statement::PerformVarying { .. } => {
                     *cfg_block += 1;
-
-                    validate_statements(body, cfg, cfg_block);
-
-                    *cfg_block += 1;
+                    pending_seq = false;
                 }
 
-                _ => {
-                    *cfg_block += 1;
-                }
+                _ => { pending_seq = true; }
             }
+        }
+
+        if pending_seq {
+            *cfg_block += 1;
         }
     }
 
@@ -1531,9 +1539,28 @@ fn validate_phi_incoming_edges(program: &Program, cfg: &ControlFlowGraph) {
         cfg_block: &mut usize,
         current_index: &mut usize,
     ) -> Option<usize> {
+        let mut pending_seq = false;
+
         for statement in statements {
             let statement_index = *current_index;
             *current_index += 1;
+
+            let needs_flush = matches!(
+                statement,
+                Statement::Phi { .. }
+                    | Statement::If { .. }
+                    | Statement::For { .. }
+                    | Statement::Perform { .. }
+                    | Statement::PerformUntil { .. }
+                    | Statement::PerformVarying { .. }
+                    | Statement::Call { .. }
+                    | Statement::StopRun
+            );
+
+            if needs_flush && pending_seq {
+                *cfg_block += 1;
+                pending_seq = false;
+            }
 
             if statement_index == target_index {
                 return Some(*cfg_block);
@@ -1546,58 +1573,49 @@ fn validate_phi_incoming_edges(program: &Program, cfg: &ControlFlowGraph) {
                     ..
                 } => {
                     *cfg_block += 1;
-
-                    if let Some(block) = statement_index_to_cfg_block(
-                        then_branch,
-                        target_index,
-                        cfg_block,
-                        current_index,
-                    ) {
-                        return Some(block);
+                    if let Some(b) =
+                        statement_index_to_cfg_block(then_branch, target_index, cfg_block, current_index)
+                    {
+                        return Some(b);
                     }
-
                     if let Some(branch) = else_branch {
-                        if let Some(block) = statement_index_to_cfg_block(
-                            branch,
-                            target_index,
-                            cfg_block,
-                            current_index,
-                        ) {
-                            return Some(block);
+                        if let Some(b) =
+                            statement_index_to_cfg_block(branch, target_index, cfg_block, current_index)
+                        {
+                            return Some(b);
                         }
                     }
+                    pending_seq = false;
                 }
 
                 Statement::For { body, .. } => {
-                    *cfg_block += 1;
-
-                    if let Some(block) =
-                        statement_index_to_cfg_block(body, target_index, cfg_block, current_index)
-                    {
-                        return Some(block);
+                    let header_block = *cfg_block;
+                    let body_block = header_block + 1;
+                    if !body.is_empty() {
+                        let mut probe = body_block;
+                        if statement_index_to_cfg_block(body, target_index, &mut probe, current_index)
+                            .is_some()
+                        {
+                            return Some(body_block);
+                        }
                     }
-
-                    *cfg_block += 2;
+                    *cfg_block = header_block + 3;
+                    pending_seq = false;
                 }
 
-                Statement::PerformUntil { body, .. } | Statement::PerformVarying { body, .. } => {
+                Statement::PerformUntil { .. } | Statement::PerformVarying { .. } => {
                     *cfg_block += 1;
-
-                    if let Some(block) =
-                        statement_index_to_cfg_block(body, target_index, cfg_block, current_index)
-                    {
-                        return Some(block);
-                    }
-
-                    *cfg_block += 1;
+                    pending_seq = false;
                 }
 
                 Statement::Phi { .. } => {}
 
-                _ => {
-                    *cfg_block += 1;
-                }
+                _ => { pending_seq = true; }
             }
+        }
+
+        if pending_seq {
+            *cfg_block += 1;
         }
 
         None
