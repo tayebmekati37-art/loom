@@ -594,3 +594,42 @@ mod ir_invariant_tests {
         );
     }
 }
+
+// =====================================================================
+// Unsupported construct representation (M2.2)
+// =====================================================================
+//
+// The parser may encounter constructs it recognizes but cannot fully
+// translate (e.g. a numeric literal it cannot parse, or a
+// recognized-but-untranslatable keyword). Rather than silently
+// dropping these to Statement::NoOp or aborting the whole parse,
+// the parser records them here so callers can inspect, report, and
+// make policy decisions.
+//
+// Design note: `unsupported` lives on ParsedProgram, not on Function.
+// Function is the migration-target container; unsupported is a
+// parse-diagnostic artifact. Storing it at the parse boundary keeps
+// Function construction sites (main.rs, tests) unchanged and keeps
+// the two concerns orthogonally composable.
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnsupportedRecord {
+    pub kind: String,
+    pub text: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParsedProgram {
+    pub statements: Vec<Statement>,
+    pub unsupported: Vec<UnsupportedRecord>,
+}
+
+impl ParsedProgram {
+    pub fn empty() -> Self {
+        Self { statements: Vec::new(), unsupported: Vec::new() }
+    }
+    pub fn from_statements(statements: Vec<Statement>) -> Self {
+        Self { statements, unsupported: Vec::new() }
+    }
+}

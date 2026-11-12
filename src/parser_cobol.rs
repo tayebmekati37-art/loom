@@ -1,8 +1,17 @@
 use crate::ir::*;
 use anyhow::Result;
 
+/// Preserved-compatible entry point. Delegates to
+/// `parse_program_with_unsupported` and drops the unsupported list.
 pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
+    parse_program_with_unsupported(input).map(|p| p.statements)
+}
+
+/// Full parse entry point. Returns both Statement list and every
+/// construct the parser recognized but could not fully translate.
+pub fn parse_program_with_unsupported(input: &str) -> Result<ParsedProgram> {
     let mut statements = Vec::new();
+    let mut unsupported: Vec<UnsupportedRecord> = Vec::new();
     let _variables: Vec<crate::ir::VariableDefinition> = Vec::new();
 
     let lines: Vec<&str> = input.lines().collect();
@@ -11,24 +20,13 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
     while i < lines.len() {
         let raw_line = lines[i];
         let line = raw_line.replace('\u{feff}', "").trim().to_string();
-
         let line = line.as_str();
-        // Skip empty lines
-        if line.is_empty() {
-            i += 1;
-            continue;
-        }
 
-        // Skip comments
-        if line.starts_with('*') {
-            i += 1;
-            continue;
-        }
+        if line.is_empty() { i += 1; continue; }
+        if line.starts_with('*') { i += 1; continue; }
 
-        // Normalize for matching
         let upper = line.to_uppercase();
 
-        // Skip COBOL divisions / metadata
         if upper.starts_with("IDENTIFICATION DIVISION")
             || upper.starts_with("ENVIRONMENT DIVISION")
             || upper.starts_with("DATA DIVISION")
@@ -48,90 +46,56 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
             i += 1;
             continue;
         }
+
         if upper.starts_with("EXEC SQL BEGIN DECLARE SECTION") {
             statements.push(Statement::DeclareSection { begin: true });
-
             while i < lines.len() {
-                if lines[i].trim().to_uppercase().starts_with("END-EXEC") {
-                    break;
-                }
-
+                if lines[i].trim().to_uppercase().starts_with("END-EXEC") { break; }
                 i += 1;
             }
-
             i += 1;
             continue;
         }
 
         if upper.starts_with("EXEC SQL END DECLARE SECTION") {
             statements.push(Statement::DeclareSection { begin: false });
-
             while i < lines.len() {
-                if lines[i].trim().to_uppercase().starts_with("END-EXEC") {
-                    break;
-                }
-
+                if lines[i].trim().to_uppercase().starts_with("END-EXEC") { break; }
                 i += 1;
             }
-
             i += 1;
             continue;
         }
 
         if upper.starts_with("EXEC SQL") {
             let mut sql = String::new();
-
             i += 1;
-
             while i < lines.len() {
                 let sql_line = lines[i].trim();
-
-                if sql_line.to_uppercase().starts_with("END-EXEC") {
-                    break;
-                }
-
+                if sql_line.to_uppercase().starts_with("END-EXEC") { break; }
                 sql.push_str(sql_line);
                 sql.push(' ');
-
                 i += 1;
             }
-
-            statements.push(Statement::ExecSql {
-                sql: sql.trim().to_string(),
-            });
-
+            statements.push(Statement::ExecSql { sql: sql.trim().to_string() });
             i += 1;
             continue;
         }
 
         if upper.starts_with("IF ") {
             let mut body = Vec::new();
-
             i += 1;
-
             while i < lines.len() {
                 let body_line = lines[i].trim();
-
                 if body_line.eq_ignore_ascii_case("END-IF")
                     || body_line.eq_ignore_ascii_case("END-IF.")
-                {
-                    break;
-                }
-
-                let stmt = parse_statement(body_line)?;
-                body.push(stmt);
-
+                { break; }
+                body.push(parse_statement(body_line, &mut unsupported)?);
                 i += 1;
             }
-
-            let if_stmt = parse_statement(line)?;
-
+            let if_stmt = parse_statement(line, &mut unsupported)?;
             match if_stmt {
-                Statement::If {
-                    condition,
-                    else_branch,
-                    ..
-                } => {
+                Statement::If { condition, else_branch, .. } => {
                     statements.push(Statement::If {
                         condition,
                         then_branch: body,
@@ -143,33 +107,23 @@ pub fn parse_program(input: &str) -> Result<Vec<Statement>> {
         } else {
             if upper == "PERFORM" {
                 let mut body = Vec::new();
-
                 i += 1;
-
                 while i < lines.len() {
                     let inner = lines[i].trim();
-
-                    if inner.eq_ignore_ascii_case("END-PERFORM") {
-                        break;
-                    }
-
-                    body.push(parse_statement(inner)?);
-
+                    if inner.eq_ignore_ascii_case("END-PERFORM") { break; }
+                    body.push(parse_statement(inner, &mut unsupported)?);
                     i += 1;
                 }
-
                 statements.push(Statement::Perform { name: None, body });
-
                 i += 1;
                 continue;
             }
-            let stmt = parse_statement(line)?;
-            statements.push(stmt);
+            statements.push(parse_statement(line, &mut unsupported)?);
         }
         i += 1;
     }
 
-    Ok(statements)
+    Ok(ParsedProgram { statements, unsupported })
 }
 fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
     let clean = line.replace(".", "");
@@ -236,65 +190,63 @@ fn parse_variable_definition(line: &str) -> Option<VariableDefinition> {
         ssa_version: None,
     })
 }
-fn parse_statement(line: &str) -> Result<Statement> {
+fn parse_statement(
+    line: &str,
+    unsupported: &mut Vec<UnsupportedRecord>,
+) -> Result<Statement> {
     let upper = line.trim().to_uppercase();
 
     if upper.starts_with("END-") {
+        unsupported.push(UnsupportedRecord {
+            kind: "end_marker".to_string(),
+            text: line.to_string(),
+            reason: "END-* marker reached parse_statement (defensive path)".to_string(),
+        });
         return Ok(Statement::NoOp);
     }
 
-    // Ignore PIC declarations
     if line.to_uppercase().contains("PIC ") {
+        unsupported.push(UnsupportedRecord {
+            kind: "pic_clause".to_string(),
+            text: line.to_string(),
+            reason: "PIC clause reached parse_statement (defensive path)".to_string(),
+        });
         return Ok(Statement::NoOp);
     }
 
     let clean = line.replace('.', "");
     let parts: Vec<&str> = clean.split_whitespace().collect();
-
     if parts.is_empty() {
         anyhow::bail!("Empty statement");
     }
 
     match parts[0].to_lowercase().as_str() {
         "display" => {
-            if parts.len() < 2 {
-                anyhow::bail!("Invalid DISPLAY");
-            }
-
-            Ok(Statement::Display {
-                value: Literal::String(parts[1..].join(" ")),
-            })
+            if parts.len() < 2 { anyhow::bail!("Invalid DISPLAY"); }
+            Ok(Statement::Display { value: Literal::String(parts[1..].join(" ")) })
         }
-
         "move" => {
-            if parts.len() < 4 {
-                anyhow::bail!("Invalid MOVE");
-            }
-
-            Ok(Statement::Move {
-                source: Source::Variable(parts[1].to_string()),
-                target: parts[3].to_string(),
-            })
+            if parts.len() < 4 { anyhow::bail!("Invalid MOVE"); }
+            Ok(Statement::Move { source: Source::Variable(parts[1].to_string()), target: parts[3].to_string() })
         }
-
         "add" => {
-            if parts.len() < 4 {
-                anyhow::bail!("Invalid ADD");
-            }
-
-            Ok(Statement::Add {
-                value: parts[1].parse::<i64>().unwrap_or(0),
-                target: parts[3].to_string(),
-            })
+            if parts.len() < 4 { anyhow::bail!("Invalid ADD"); }
+            let value = match parts[1].parse::<i64>() {
+                Ok(v) => v,
+                Err(_) => {
+                    unsupported.push(UnsupportedRecord {
+                        kind: "bad_numeric".to_string(),
+                        text: parts[1].to_string(),
+                        reason: "ADD operand could not be parsed as i64; defaulted to 0".to_string(),
+                    });
+                    0
+                }
+            };
+            Ok(Statement::Add { value, target: parts[3].to_string() })
         }
-
         "copy" => {
-            if parts.len() < 2 {
-                anyhow::bail!("Invalid COPY");
-            }
-
+            if parts.len() < 2 { anyhow::bail!("Invalid COPY"); }
             let mut replacing = Vec::new();
-
             if parts.len() >= 6
                 && parts[2].eq_ignore_ascii_case("REPLACING")
                 && parts[4].eq_ignore_ascii_case("BY")
@@ -304,99 +256,66 @@ fn parse_statement(line: &str) -> Result<Statement> {
                     parts[5].trim_end_matches(".").replace("==", ""),
                 ));
             }
-
-            Ok(Statement::Copybook {
-                name: parts[1].trim_end_matches(".").to_string(),
-                replacing,
-            })
+            Ok(Statement::Copybook { name: parts[1].trim_end_matches(".").to_string(), replacing })
         }
-
         "replace" => {
-            if parts.len() < 4 {
-                anyhow::bail!("Invalid REPLACE");
-            }
-
-            Ok(Statement::Replace {
-                from: parts[1].replace("==", ""),
-                to: parts[3].replace("==", ""),
-            })
+            if parts.len() < 4 { anyhow::bail!("Invalid REPLACE"); }
+            Ok(Statement::Replace { from: parts[1].replace("==", ""), to: parts[3].replace("==", "") })
         }
-
         "perform" => {
             if parts.len() >= 3 && parts[1].eq_ignore_ascii_case("until") {
-                let cond = Condition {
-                    left: parts[2].to_string(),
-                    operator: ">".to_string(),
-                    right: "0".to_string(),
-                };
-
                 Ok(Statement::PerformUntil {
-                    condition: cond,
+                    condition: Condition {
+                        left: parts[2].to_string(),
+                        operator: ">".to_string(),
+                        right: "0".to_string(),
+                    },
                     body: Vec::new(),
                 })
             } else if parts.len() >= 2 {
-                Ok(Statement::Perform {
-                    name: Some(parts[1].to_string()),
-                    body: Vec::new(),
-                })
+                Ok(Statement::Perform { name: Some(parts[1].to_string()), body: Vec::new() })
             } else {
                 anyhow::bail!("Invalid PERFORM");
             }
         }
-
         "call" => {
-            if parts.len() < 2 {
-                anyhow::bail!("Invalid CALL");
-            }
-
-            Ok(Statement::Call {
-                program: parts[1].replace('"', ""),
-                using_args: Vec::new(),
-            })
+            if parts.len() < 2 { anyhow::bail!("Invalid CALL"); }
+            Ok(Statement::Call { program: parts[1].replace('"', ""), using_args: Vec::new() })
         }
-
         "if" => {
-            if parts.len() < 4 {
-                anyhow::bail!("Invalid IF");
-            }
-
-            let left = parts[1].to_string();
-            let operator = parts[2].to_string();
-
-            let right = parts[3].to_string();
-
-            let cond = Condition {
-                left,
-                operator,
-                right,
-            };
-
+            if parts.len() < 4 { anyhow::bail!("Invalid IF"); }
             Ok(Statement::If {
-                condition: cond,
+                condition: Condition {
+                    left: parts[1].to_string(),
+                    operator: parts[2].to_string(),
+                    right: parts[3].to_string(),
+                },
                 then_branch: Vec::new(),
                 else_branch: None,
             })
         }
-
         "stop" => {
             if parts.len() >= 2 && parts[1].eq_ignore_ascii_case("run") {
-                Ok(Statement::NoOp)
+                Ok(Statement::StopRun)
             } else {
                 anyhow::bail!("Invalid STOP statement");
             }
         }
         "compute" => {
-            if parts.len() < 4 {
-                anyhow::bail!("Invalid COMPUTE");
-            }
-
-            let target = parts[1].to_string();
-
-            let expr = parse_expression(&parts[3..]);
-
-            Ok(Statement::Compute { target, expr })
+            if parts.len() < 4 { anyhow::bail!("Invalid COMPUTE"); }
+            Ok(Statement::Compute {
+                target: parts[1].to_string(),
+                expr: parse_expression(&parts[3..]),
+            })
         }
-        "end-perform" => Ok(Statement::NoOp),
+        "end-perform" => {
+            unsupported.push(UnsupportedRecord {
+                kind: "end_perform_marker".to_string(),
+                text: line.to_string(),
+                reason: "END-PERFORM reached parse_statement (defensive path)".to_string(),
+            });
+            Ok(Statement::NoOp)
+        }
         _ => {
             anyhow::bail!("Unknown statement: {}", line)
         }

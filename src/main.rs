@@ -84,19 +84,19 @@ fn parse_key_val(s: &str) -> Result<(String, i64), String> {
     Ok((parts[0].to_string(), value))
 }
 
-fn parse_legacy(input: &str, lang: &str) -> anyhow::Result<Vec<ir::Statement>> {
+fn parse_legacy(input: &str, lang: &str) -> anyhow::Result<ir::ParsedProgram> {
     let bytes = std::fs::read(input)?;
     let content = String::from_utf8_lossy(&bytes)
         .trim_start_matches('\u{feff}')
         .to_string();
 
     match lang {
-        "simple" => parser::parse_program(&content),
-        "cobol" => parser_cobol::parse_program(&content),
-        "rpg" => parser_rpg::parse_program(&content),
-        "pli" => parser_pli::parse_program(&content),
-        "jcl" => parser_jcl::parse_program(&content),
-        "asm" => parser_asm::parse_program(&content),
+        "simple" => parser::parse_program(&content).map(ir::ParsedProgram::from_statements),
+        "cobol" => parser_cobol::parse_program_with_unsupported(&content),
+        "rpg" => parser_rpg::parse_program(&content).map(ir::ParsedProgram::from_statements),
+        "pli" => parser_pli::parse_program(&content).map(ir::ParsedProgram::from_statements),
+        "jcl" => parser_jcl::parse_program(&content).map(ir::ParsedProgram::from_statements),
+        "asm" => parser_asm::parse_program(&content).map(ir::ParsedProgram::from_statements),
         _ => anyhow::bail!("Unsupported legacy language: {}", lang),
     }
 }
@@ -110,11 +110,21 @@ fn main() -> anyhow::Result<()> {
             lang,
             target,
         } => {
-            let statements = parse_legacy(&input, &lang)?;
+            let parsed = parse_legacy(&input, &lang)?;
+
+            if !parsed.unsupported.is_empty() {
+                eprintln!(
+                    "Warning: {} unsupported construct(s) recorded during parse:",
+                    parsed.unsupported.len()
+                );
+                for u in &parsed.unsupported {
+                    eprintln!("  [{}] {}: {}", u.kind, u.text, u.reason);
+                }
+            }
 
             let func = ir::Function {
                 name: "translated_func".to_string(),
-                body: statements,
+                body: parsed.statements,
             };
 
             match target.as_str() {
@@ -140,11 +150,21 @@ fn main() -> anyhow::Result<()> {
             record,
             test_file,
         } => {
-            let statements = parse_legacy(&input, &lang)?;
+            let parsed = parse_legacy(&input, &lang)?;
+
+            if !parsed.unsupported.is_empty() {
+                eprintln!(
+                    "Warning: {} unsupported construct(s) recorded during parse:",
+                    parsed.unsupported.len()
+                );
+                for u in &parsed.unsupported {
+                    eprintln!("  [{}] {}: {}", u.kind, u.text, u.reason);
+                }
+            }
 
             let func = ir::Function {
                 name: "translated_func".to_string(),
-                body: statements,
+                body: parsed.statements,
             };
 
             let test_path = test_file.unwrap_or_else(|| format!("{}.tests.json", input));
@@ -223,22 +243,22 @@ fn main() -> anyhow::Result<()> {
             modern_file,
             target,
         } => {
-            let legacy_statements = parse_legacy(&legacy_file, "simple")?;
+            let legacy_parsed = parse_legacy(&legacy_file, "simple")?;
 
             let legacy_func = ir::Function {
                 name: "legacy_func".to_string(),
-                body: legacy_statements,
+                body: legacy_parsed.statements,
             };
 
             let mut fig = migration::StranglerFig::new();
             fig.add_legacy(legacy_func.name.clone(), legacy_func.clone());
 
             if let Some(modern_path) = modern_file {
-                let modern_statements = parse_legacy(&modern_path, "simple")?;
+                let modern_parsed = parse_legacy(&modern_path, "simple")?;
 
                 let modern_func = ir::Function {
                     name: "modern_func".to_string(),
-                    body: modern_statements,
+                    body: modern_parsed.statements,
                 };
 
                 fig.add_modern(modern_func.name.clone(), modern_func);
