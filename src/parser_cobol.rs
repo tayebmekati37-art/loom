@@ -223,7 +223,11 @@ fn parse_statement(
     match parts[0].to_lowercase().as_str() {
         "display" => {
             if parts.len() < 2 { anyhow::bail!("Invalid DISPLAY"); }
-            Ok(Statement::Display { value: Literal::String(parts[1..].join(" ")) })
+            let joined = parts[1..].join(" ");
+            let trimmed = joined
+                .trim_matches(|c| c == '\'' || c == '"')
+                .to_string();
+            Ok(Statement::Display { value: Literal::String(trimmed) })
         }
         "move" => {
             if parts.len() < 4 { anyhow::bail!("Invalid MOVE"); }

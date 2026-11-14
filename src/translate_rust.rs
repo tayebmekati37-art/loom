@@ -101,6 +101,10 @@ fn translate_statement(stmt: &Statement, level: usize, out: &mut String) {
             writeln!(out, "{}// CALL {}", pad, program).unwrap();
         }
 
+        Statement::StopRun => {
+            writeln!(out, "{}return;", pad).unwrap();
+        }
+
         _ => {
             writeln!(out, "{}// Unsupported statement", pad).unwrap();
         }
